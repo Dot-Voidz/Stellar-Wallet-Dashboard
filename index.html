@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stellar Wallet Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💧 Stellar Wallet Dashboard</h1>
+        </header>
+
+        <main>
+            <section class="wallet-section">
+                <h2>Wallet</h2>
+                <div class="input-group">
+                    <label for="secret-key">Secret Key (or leave blank to generate new):</label>
+                    <input type="password" id="secret-key" placeholder="S...">
+                    <button id="toggle-secret">Show</button>
+                </div>
+                <div class="button-group">
+                    <button id="load-wallet">Load Wallet</button>
+                    <button id="generate-wallet">Generate New Wallet</button>
+                </div>
+                <div id="wallet-info" class="info-box hidden">
+                    <p><strong>Public Key:</strong> <span id="public-key"></span></p>
+                    <p><strong>Secret Key:</strong> <span id="secret-key-display"></span></p>
+                </div>
+            </section>
+
+            <section class="balance-section">
+                <h2>Balances</h2>
+                <div id="balances" class="balances-container">
+                    <p class="loading">Load a wallet to view balances</p>
+                </div>
+            </section>
+
+            <section class="transaction-section">
+                <h2>Send Payment</h2>
+                <div class="input-group">
+                    <label for="destination">Destination Address:</label>
+                    <input type="text" id="destination" placeholder="G...">
+                </div>
+                <div class="input-group">
+                    <label for="amount">Amount (XLM):</label>
+                    <input type="number" id="amount" step="0.0000001" placeholder="0.0">
+                </div>
+                <button id="send-payment">Send Payment</button>
+                <div id="transaction-result" class="result-box hidden"></div>
+            </section>
+
+            <section class="network-section">
+                <h2>Network</h2>
+                <select id="network-select">
+                    <option value="testnet">Testnet</option>
+                    <option value="public">Public Mainnet</option>
+                </select>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stellar-sdk/11.0.1/stellar-sdk.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
