@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stellar Wallet Generation Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.5; }
+    button { padding: 0.6rem 1rem; margin-top: 1rem; }
+    pre { background: #f5f5f5; padding: 1rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>Wallet Generation Demo</h1>
+  <p>This example creates a new Stellar keypair locally.</p>
+  <button id="generate">Generate Wallet</button>
+  <pre id="result">No wallet generated yet.</pre>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/stellar-sdk/11.0.1/stellar-sdk.min.js"></script>
+  <script>
+    document.getElementById('generate').addEventListener('click', () => {
+      const keypair = StellarSdk.Keypair.random();
+      document.getElementById('result').textContent = JSON.stringify({
+        publicKey: keypair.publicKey(),
+        secretKey: keypair.secret()
+      }, null, 2);
+    });
+  </script>
+</body>
+</html>
