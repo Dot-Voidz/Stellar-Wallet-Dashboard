@@ -15,6 +15,10 @@ Beyond its utility as a wallet, this project serves as a clean reference impleme
 -  
 ## Getting Started
 
+## Examples
+
+Standalone demo pages live in [examples/README.md](examples/README.md) and cover wallet generation, balance lookups, and payment building with simple HTML and JavaScript.
+
 ### Prerequisites
 
 You just need a web browser! No installation required.
@@ -29,8 +33,9 @@ You just need a web browser! No installation required.
    
 ### Clone the Repository
 ```bash
-git clone [https://github.com/Dot-Voidz/Stellar-Wallet-Dashboard.git](https://github.com/Dot-Voidz/Stellar-Wallet-Dashboard.git)
+git clone https://github.com/Dot-Voidz/Stellar-Wallet-Dashboard.git
 cd Stellar-Wallet-Dashboard
+```
 
 ### Testnet Faucet
 

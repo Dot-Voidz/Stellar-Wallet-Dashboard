@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stellar Balance Lookup Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.5; }
+    input, button { display: block; margin-top: 0.75rem; padding: 0.6rem; }
+    pre { background: #f5f5f5; padding: 1rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>Balance Lookup Demo</h1>
+  <p>Enter a public key to load its balances from Horizon testnet.</p>
+  <input id="address" placeholder="Enter public key" size="60" />
+  <button id="lookup">Lookup Balances</button>
+  <pre id="result">Waiting for input.</pre>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/stellar-sdk/11.0.1/stellar-sdk.min.js"></script>
+  <script>
+    document.getElementById('lookup').addEventListener('click', async () => {
+      const address = document.getElementById('address').value.trim();
+      const server = new StellarSdk.Server('https://horizon-testnet.stellar.org');
+      try {
+        const account = await server.loadAccount(address);
+        document.getElementById('result').textContent = JSON.stringify(account.balances, null, 2);
+      } catch (error) {
+        document.getElementById('result').textContent = `Error: ${error.message}`;
+      }
+    });
+  </script>
+</body>
+</html>

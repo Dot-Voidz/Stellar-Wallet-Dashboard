@@ -107,6 +107,104 @@ button:hover {
     color: #666;
 }
 
+.section-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.icon-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.icon-button:hover {
+    background: #e5e7eb;
+    color: #111827;
+}
+
+.icon-button:disabled {
+    cursor: wait;
+    opacity: 0.8;
+}
+
+.icon-button.is-loading .refresh-icon {
+    animation: spin 1s linear infinite;
+}
+
+.refresh-icon {
+    font-size: 1rem;
+}
+
+.message {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    background: #f8fafc;
+    margin-top: 10px;
+}
+
+.message-error {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+}
+
+.message-success {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+    color: #166534;
+}
+
+.message-info {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1d4ed8;
+}
+
+.message-icon {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.message-body strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.message-body p {
+    font-size: 0.95rem;
+}
+
+.message-dismiss {
+    margin-left: auto;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.message-dismiss:hover {
+    background: transparent;
+    color: #111827;
+}
+
+.empty-state {
+    color: #6b7280;
+}
+
 .balance-item {
     padding: 10px;
     border-bottom: 1px solid #eee;

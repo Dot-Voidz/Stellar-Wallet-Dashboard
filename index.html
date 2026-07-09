@@ -24,6 +24,7 @@
                     <button id="load-wallet">Load Wallet</button>
                     <button id="generate-wallet">Generate New Wallet</button>
                 </div>
+                <div id="wallet-feedback" class="result-box hidden"></div>
                 <div id="wallet-info" class="info-box hidden">
                     <p><strong>Public Key:</strong> <span id="public-key"></span></p>
                     <p><strong>Secret Key:</strong> <span id="secret-key-display"></span></p>
@@ -31,7 +32,13 @@
             </section>
 
             <section class="balance-section">
-                <h2>Balances</h2>
+                <div class="section-heading">
+                    <h2>Balances</h2>
+                    <button id="refresh-balances" class="icon-button" type="button" aria-label="Refresh balances">
+                        <span class="refresh-icon" aria-hidden="true">↻</span>
+                        <span class="refresh-label">Refresh</span>
+                    </button>
+                </div>
                 <div id="balances" class="balances-container">
                     <p class="loading">Load a wallet to view balances</p>
                 </div>
