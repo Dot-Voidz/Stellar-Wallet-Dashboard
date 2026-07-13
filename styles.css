@@ -103,6 +103,61 @@ button:hover {
     min-height: 60px;
 }
 
+.chart-panel {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.chart-panel h3 {
+    color: #333;
+    font-size: 1rem;
+    margin-bottom: 12px;
+}
+
+.balance-chart {
+    display: grid;
+    gap: 10px;
+}
+
+.chart-row {
+    display: grid;
+    grid-template-columns: 88px minmax(120px, 1fr) minmax(120px, auto);
+    gap: 10px;
+    align-items: center;
+}
+
+.chart-label,
+.chart-value {
+    color: #374151;
+    font-size: 0.9rem;
+}
+
+.chart-label {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.chart-value {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.chart-track {
+    height: 14px;
+    overflow: hidden;
+    background: #eef2ff;
+    border: 1px solid #dbe4ff;
+    border-radius: 999px;
+}
+
+.chart-bar {
+    height: 100%;
+    min-width: 4px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #667eea, #28a745);
+}
+
 .loading {
     color: #666;
 }
@@ -224,4 +279,16 @@ button:hover {
 .error {
     color: #dc3545;
     font-weight: 500;
+}
+
+@media (max-width: 640px) {
+    .chart-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    .chart-value {
+        text-align: left;
+        white-space: normal;
+    }
 }
