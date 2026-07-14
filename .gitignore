@@ -8,5 +8,8 @@ Thumbs.db
 *.swp
 *.swo
 
+# Dependency directories
+node_modules/
+
 # Log files
 *.log
