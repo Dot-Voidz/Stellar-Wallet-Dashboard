@@ -1,5 +1,9 @@
 # Stellar Wallet Dashboard
 
+![GitHub issues](https://img.shields.io/github/issues/Dot-Voidz/Stellar-Wallet-Dashboard)
+![GitHub pull requests](https://img.shields.io/github/issues-pr/Dot-Voidz/Stellar-Wallet-Dashboard)
+![License](https://img.shields.io/github/license/Dot-Voidz/Stellar-Wallet-Dashboard)
+
 A user-friendly, web-based dashboard for managing Stellar wallets. It lets you generate keypairs, view balances, and build payments without writing your own client code.
 
 ## Features
@@ -101,7 +105,9 @@ The current tests cover validation helpers for Stellar public keys and payment a
 
 ## Contributing
 
-Contributions are welcome. Please open an issue or submit a pull request with your proposed changes.
+Contributions are welcome. Please use the issue templates in `.github/ISSUE_TEMPLATE/` when opening new issues for bugs, feature requests, or questions.
+
+If you're ready to contribute, fork the repo, create a branch, and open a pull request with a clear description and testing notes.
 
 ## License
 
