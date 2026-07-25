@@ -1,9 +1,20 @@
 {
   "name": "stellar-wallet-dashboard",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
+  "description": "Browser dashboard for Stellar keypairs, balances, and payments",
+  "license": "GPL-3.0-only",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "python3 -m http.server 8000"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dot-Voidz/Stellar-Wallet-Dashboard.git"
   },
   "devDependencies": {
     "vitest": "^2.1.8"
