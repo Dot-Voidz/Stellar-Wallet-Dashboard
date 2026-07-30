@@ -11,6 +11,7 @@ const walletFeedback = document.getElementById('wallet-feedback');
 const publicKeyDisplay = document.getElementById('public-key');
 const secretKeyDisplay = document.getElementById('secret-key-display');
 const balancesContainer = document.getElementById('balances');
+const balanceChart = document.getElementById('balance-chart');
 const refreshBalancesBtn = document.getElementById('refresh-balances');
 const destinationInput = document.getElementById('destination');
 const amountInput = document.getElementById('amount');
@@ -123,11 +124,72 @@ function renderMessage(container, type, title, message) {
     container.appendChild(messageBox);
 }
 
+function formatAssetLabel(balance) {
+    return balance.asset_type === 'native' ? 'XLM' : balance.asset_code;
+}
+
+function renderBalanceChart(balances = []) {
+    if (!balanceChart) return;
+
+    balanceChart.innerHTML = '';
+    const chartBalances = balances
+        .map((balance) => ({
+            asset: formatAssetLabel(balance),
+            amount: Number.parseFloat(balance.balance)
+        }))
+        .filter((balance) => Number.isFinite(balance.amount) && balance.amount > 0);
+
+    if (!chartBalances.length) {
+        balanceChart.setAttribute('aria-label', 'No positive balances available to chart');
+        balanceChart.innerHTML = '<p class="empty-state">No positive balances to chart.</p>';
+        return;
+    }
+
+    const total = chartBalances.reduce((sum, balance) => sum + balance.amount, 0);
+    const max = Math.max(...chartBalances.map((balance) => balance.amount));
+    const chartSummary = chartBalances
+        .map((balance) => `${balance.asset} ${((balance.amount / total) * 100).toFixed(1)}%`)
+        .join(', ');
+
+    balanceChart.setAttribute('aria-label', `Balance allocation: ${chartSummary}`);
+
+    chartBalances.forEach((balance) => {
+        const percent = (balance.amount / total) * 100;
+        const width = Math.max((balance.amount / max) * 100, 4);
+
+        const row = document.createElement('div');
+        row.className = 'chart-row';
+
+        const label = document.createElement('span');
+        label.className = 'chart-label';
+        label.textContent = balance.asset;
+
+        const track = document.createElement('div');
+        track.className = 'chart-track';
+
+        const bar = document.createElement('div');
+        bar.className = 'chart-bar';
+        bar.style.width = `${width}%`;
+        bar.setAttribute('aria-hidden', 'true');
+
+        const value = document.createElement('span');
+        value.className = 'chart-value';
+        value.textContent = `${balance.amount.toLocaleString(undefined, { maximumFractionDigits: 7 })} (${percent.toFixed(1)}%)`;
+
+        track.appendChild(bar);
+        row.appendChild(label);
+        row.appendChild(track);
+        row.appendChild(value);
+        balanceChart.appendChild(row);
+    });
+}
+
 // Show wallet info
 function showWalletInfo() {
     walletInfo.classList.remove('hidden');
     publicKeyDisplay.textContent = currentKeypair.publicKey();
     secretKeyDisplay.textContent = currentKeypair.secret();
+    renderBalanceChart([]);
 }
 
 // Get server based on network
@@ -162,17 +224,21 @@ async function loadBalances(options = {}) {
         balancesContainer.innerHTML = '';
         if (!account.balances.length) {
             balancesContainer.innerHTML = '<p class="empty-state">This account does not have any balances yet.</p>';
+            renderBalanceChart([]);
             return;
         }
+
+        renderBalanceChart(account.balances);
 
         account.balances.forEach(balance => {
             const div = document.createElement('div');
             div.className = 'balance-item';
-            const asset = balance.asset_type === 'native' ? 'XLM' : balance.asset_code;
+            const asset = formatAssetLabel(balance);
             div.innerHTML = `<span>${asset}</span><span>${balance.balance}</span>`;
             balancesContainer.appendChild(div);
         });
     } catch (e) {
+        renderBalanceChart([]);
         renderMessage(balancesContainer, 'error', 'Unable to load balances', e.message || 'The account could not be reached.');
     } finally {
         if (manualRefresh) {
