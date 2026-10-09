@@ -24,6 +24,19 @@ const sendPaymentBtn = document.getElementById('send-payment');
 const transactionResult = document.getElementById('transaction-result');
 const networkSelect = document.getElementById('network-select');
 
+// Confirmation modal elements
+const confirmModal = document.getElementById('confirm-modal');
+const confirmDestination = document.getElementById('confirm-destination');
+const confirmAmount = document.getElementById('confirm-amount');
+const confirmAsset = document.getElementById('confirm-asset');
+const confirmMemo = document.getElementById('confirm-memo');
+const confirmFee = document.getElementById('confirm-fee');
+const confirmCancelBtn = document.getElementById('confirm-cancel');
+const confirmSendBtn = document.getElementById('confirm-send');
+
+let confirmAction = null;
+let lastFocusedElement = null;
+
 // Toggle secret key visibility
 toggleSecretBtn.addEventListener('click', () => {
     if (secretKeyInput.type === 'password') {
@@ -133,6 +146,71 @@ function renderMessage(container, type, title, message) {
     messageBox.appendChild(dismissButton);
     container.appendChild(messageBox);
 }
+
+function networkFeeInXlm() {
+    return (Number(StellarSdk.BASE_FEE) / 10000000).toFixed(7);
+}
+
+function handleModalKeydown(event) {
+    if (event.key === 'Escape') {
+        closeConfirmModal();
+        return;
+    }
+
+    if (event.key === 'Tab') {
+        const focusable = confirmModal.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable.length) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    }
+}
+
+function openConfirmModal({ destination, amount, memoType, memoValue, onConfirm }) {
+    confirmDestination.textContent = destination;
+    confirmAmount.textContent = `${amount} XLM`;
+    confirmAsset.textContent = 'XLM (native)';
+    confirmMemo.textContent = memoValue ? `${memoType}: ${memoValue}` : 'None';
+    confirmFee.textContent = `${networkFeeInXlm()} XLM (${StellarSdk.BASE_FEE} stroops)`;
+
+    confirmAction = onConfirm;
+    lastFocusedElement = document.activeElement;
+    confirmModal.classList.remove('hidden');
+    document.addEventListener('keydown', handleModalKeydown);
+    confirmSendBtn.focus();
+}
+
+function closeConfirmModal() {
+    confirmModal.classList.add('hidden');
+    confirmAction = null;
+    document.removeEventListener('keydown', handleModalKeydown);
+    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+        lastFocusedElement.focus();
+    }
+}
+
+confirmCancelBtn.addEventListener('click', closeConfirmModal);
+confirmSendBtn.addEventListener('click', () => {
+    const action = confirmAction;
+    closeConfirmModal();
+    if (action) {
+        action();
+    }
+});
+
+document.querySelectorAll('[data-close-modal]').forEach((element) => {
+    element.addEventListener('click', closeConfirmModal);
+});
 
 function formatAssetLabel(balance) {
     return balance.asset_type === 'native' ? 'XLM' : balance.asset_code;
@@ -290,7 +368,7 @@ function memoHint(type) {
 }
 
 // Send payment
-sendPaymentBtn.addEventListener('click', async () => {
+sendPaymentBtn.addEventListener('click', () => {
     if (isSubmittingPayment) return;
 
     if (!currentKeypair) {
@@ -332,6 +410,18 @@ sendPaymentBtn.addEventListener('click', async () => {
         return;
     }
 
+    openConfirmModal({
+        destination,
+        amount,
+        memoType,
+        memoValue,
+        onConfirm: () => submitPayment({ destination, amount, memoType, memoValue })
+    });
+});
+
+async function submitPayment({ destination, amount, memoType, memoValue }) {
+    if (isSubmittingPayment) return;
+
     isSubmittingPayment = true;
     sendPaymentBtn.disabled = true;
 
@@ -372,4 +462,4 @@ sendPaymentBtn.addEventListener('click', async () => {
         isSubmittingPayment = false;
         sendPaymentBtn.disabled = false;
     }
-});
+}
