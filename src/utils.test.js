@@ -5,6 +5,9 @@ import {
   isValidAmount,
   isValidMemo,
   createAsyncAction,
+  assetFromBalance,
+  assetsFromBalances,
+  hasTrustline,
   describePaymentError,
   summarizeOperation
 } from './utils.js';
@@ -153,6 +156,58 @@ describe('createAsyncAction', () => {
     release();
     expect((await first).value).toBe('first');
     expect(starts).toBe(1);
+const ISSUER = 'G' + 'B'.repeat(55);
+
+describe('assetFromBalance', () => {
+  it('maps native balances', () => {
+    expect(assetFromBalance({ asset_type: 'native', balance: '10' })).toEqual({
+      code: 'XLM',
+      issuer: null,
+      isNative: true,
+      label: 'XLM (native)'
+    });
+  });
+
+  it('maps credit balances and shortens the issuer', () => {
+    const result = assetFromBalance({ asset_type: 'credit_alphanum4', asset_code: 'USDC', asset_issuer: ISSUER, balance: '5' });
+    expect(result).toMatchObject({ code: 'USDC', issuer: ISSUER, isNative: false });
+    expect(result.label).toBe(`USDC (${ISSUER.slice(0, 6)}…${ISSUER.slice(-4)})`);
+  });
+
+  it('rejects malformed balances', () => {
+    expect(assetFromBalance(null)).toBeNull();
+    expect(assetFromBalance({ asset_type: 'credit_alphanum4' })).toBeNull();
+  });
+});
+
+describe('assetsFromBalances', () => {
+  it('maps and filters a balance list', () => {
+    const options = assetsFromBalances([
+      { asset_type: 'native', balance: '10' },
+      { asset_type: 'credit_alphanum4' },
+      { asset_type: 'credit_alphanum4', asset_code: 'USDC', asset_issuer: ISSUER, balance: '5' }
+    ]);
+    expect(options.map((option) => option.code)).toEqual(['XLM', 'USDC']);
+  });
+
+  it('handles bad input', () => {
+    expect(assetsFromBalances()).toEqual([]);
+    expect(assetsFromBalances('nope')).toEqual([]);
+  });
+});
+
+describe('hasTrustline', () => {
+  const balances = [{ asset_type: 'credit_alphanum4', asset_code: 'USDC', asset_issuer: ISSUER }];
+
+  it('detects a matching credit balance', () => {
+    expect(hasTrustline(balances, 'USDC', ISSUER)).toBe(true);
+    expect(hasTrustline(balances, 'USDC', 'G' + 'C'.repeat(55))).toBe(false);
+    expect(hasTrustline(balances, 'EURT', ISSUER)).toBe(false);
+  });
+
+  it('handles missing input', () => {
+    expect(hasTrustline(undefined, 'USDC', ISSUER)).toBe(false);
+    expect(hasTrustline(balances, 'USDC', undefined)).toBe(false);
   });
 });
 

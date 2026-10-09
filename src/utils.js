@@ -102,6 +102,54 @@ export function createAsyncAction({ onStart, onFinish } = {}) {
   };
 }
 
+function shortenIssuer(issuer) {
+  if (typeof issuer !== 'string' || issuer.length < 10) {
+    return issuer || '';
+  }
+  return `${issuer.slice(0, 6)}…${issuer.slice(-4)}`;
+}
+
+/**
+ * Map a Horizon balance record to a selectable asset descriptor.
+ * Returns null for records that cannot be turned into a payment asset.
+ */
+export function assetFromBalance(balance) {
+  if (!balance || typeof balance !== 'object') {
+    return null;
+  }
+
+  if (balance.asset_type === 'native') {
+    return { code: 'XLM', issuer: null, isNative: true, label: 'XLM (native)' };
+  }
+
+  if (!balance.asset_code || !balance.asset_issuer) {
+    return null;
+  }
+
+  return {
+    code: balance.asset_code,
+    issuer: balance.asset_issuer,
+    isNative: false,
+    label: `${balance.asset_code} (${shortenIssuer(balance.asset_issuer)})`
+  };
+}
+
+export function assetsFromBalances(balances = []) {
+  if (!Array.isArray(balances)) {
+    return [];
+  }
+  return balances.map(assetFromBalance).filter(Boolean);
+}
+
+export function hasTrustline(balances = [], code, issuer) {
+  if (!Array.isArray(balances) || !code || !issuer) {
+    return false;
+  }
+  return balances.some((balance) => balance
+    && balance.asset_code === code
+    && balance.asset_issuer === issuer);
+}
+
 const SECRET_KEY_PATTERN = /S[A-Z2-7]{55}/g;
 
 function redactSecrets(value) {
