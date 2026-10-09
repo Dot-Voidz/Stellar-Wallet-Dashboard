@@ -67,6 +67,21 @@ input, select {
     font-size: 1rem;
 }
 
+.memo-row {
+    display: flex;
+    gap: 8px;
+}
+
+.memo-row select {
+    width: 42%;
+    flex-shrink: 0;
+}
+
+.memo-row input {
+    flex: 1;
+    min-width: 0;
+}
+
 button {
     padding: 10px 20px;
     background: #667eea;

@@ -60,6 +60,18 @@
                     <label for="amount">Amount (XLM):</label>
                     <input type="number" id="amount" step="0.0000001" placeholder="0.0">
                 </div>
+                <div class="input-group">
+                    <label for="memo">Memo (optional):</label>
+                    <div class="memo-row">
+                        <select id="memo-type" aria-label="Memo type">
+                            <option value="text">Text (max 28 bytes)</option>
+                            <option value="id">ID (64-bit number)</option>
+                            <option value="hash">Hash (64 hex chars)</option>
+                            <option value="return">Return (64 hex chars)</option>
+                        </select>
+                        <input type="text" id="memo" placeholder="e.g. invoice-42" autocomplete="off">
+                    </div>
+                </div>
                 <button id="send-payment">Send Payment</button>
                 <div id="transaction-result" class="result-box hidden"></div>
             </section>
@@ -75,6 +87,6 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stellar-sdk/11.0.1/stellar-sdk.min.js"></script>
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -1,5 +1,8 @@
+import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo } from './src/utils.js';
+
 let currentKeypair = null;
 let currentNetwork = 'testnet';
+let isSubmittingPayment = false;
 
 // DOM Elements
 const secretKeyInput = document.getElementById('secret-key');
@@ -15,6 +18,8 @@ const balanceChart = document.getElementById('balance-chart');
 const refreshBalancesBtn = document.getElementById('refresh-balances');
 const destinationInput = document.getElementById('destination');
 const amountInput = document.getElementById('amount');
+const memoInput = document.getElementById('memo');
+const memoTypeSelect = document.getElementById('memo-type');
 const sendPaymentBtn = document.getElementById('send-payment');
 const transactionResult = document.getElementById('transaction-result');
 const networkSelect = document.getElementById('network-select');
@@ -43,6 +48,11 @@ loadWalletBtn.addEventListener('click', () => {
     const secret = secretKeyInput.value.trim();
     if (!secret) {
         renderMessage(walletFeedback, 'error', 'Missing secret key', 'Please enter a secret key or generate a new wallet.');
+        return;
+    }
+
+    if (!isValidSecretKey(secret)) {
+        renderMessage(walletFeedback, 'error', 'Invalid secret key', 'Secret keys are 56 characters and start with "S". Check for missing or extra characters.');
         return;
     }
 
@@ -194,9 +204,12 @@ function showWalletInfo() {
 
 // Get server based on network
 function getServer() {
-    return currentNetwork === 'public'
-        ? new StellarSdk.Server('https://horizon.stellar.org')
-        : new StellarSdk.Server('https://horizon-testnet.stellar.org');
+    const horizonUrl = currentNetwork === 'public'
+        ? 'https://horizon.stellar.org'
+        : 'https://horizon-testnet.stellar.org';
+
+    // stellar-sdk v11 moved the Horizon client under `Horizon`.
+    return new StellarSdk.Horizon.Server(horizonUrl);
 }
 
 // Get network passphrase
@@ -233,8 +246,12 @@ async function loadBalances(options = {}) {
         account.balances.forEach(balance => {
             const div = document.createElement('div');
             div.className = 'balance-item';
-            const asset = formatAssetLabel(balance);
-            div.innerHTML = `<span>${asset}</span><span>${balance.balance}</span>`;
+            const assetCode = document.createElement('span');
+            assetCode.textContent = formatAssetLabel(balance);
+            const amount = document.createElement('span');
+            amount.textContent = balance.balance;
+            div.appendChild(assetCode);
+            div.appendChild(amount);
             balancesContainer.appendChild(div);
         });
     } catch (e) {
@@ -247,8 +264,35 @@ async function loadBalances(options = {}) {
     }
 }
 
+function buildMemo(type, value) {
+    switch (type) {
+        case 'id':
+            return StellarSdk.Memo.id(value);
+        case 'hash':
+            return StellarSdk.Memo.hash(value);
+        case 'return':
+            return StellarSdk.Memo.return(value);
+        default:
+            return StellarSdk.Memo.text(value);
+    }
+}
+
+function memoHint(type) {
+    switch (type) {
+        case 'id':
+            return 'ID memos must be a whole number between 0 and 18446744073709551615.';
+        case 'hash':
+        case 'return':
+            return 'Hash and return memos must be exactly 64 hexadecimal characters (32 bytes).';
+        default:
+            return 'Text memos can be up to 28 bytes (UTF-8), for example 28 characters of plain text.';
+    }
+}
+
 // Send payment
 sendPaymentBtn.addEventListener('click', async () => {
+    if (isSubmittingPayment) return;
+
     if (!currentKeypair) {
         renderMessage(transactionResult, 'error', 'Wallet required', 'Please load or generate a wallet first.');
         return;
@@ -262,13 +306,42 @@ sendPaymentBtn.addEventListener('click', async () => {
         return;
     }
 
+    if (!isValidPublicKey(destination)) {
+        renderMessage(transactionResult, 'error', 'Invalid destination', 'Destination must be a 56-character Stellar public key starting with "G".');
+        destinationInput.focus();
+        return;
+    }
+
+    if (destination === currentKeypair.publicKey()) {
+        renderMessage(transactionResult, 'error', 'Same account', 'The destination is the account you are sending from.');
+        return;
+    }
+
+    if (!isValidAmount(amount)) {
+        renderMessage(transactionResult, 'error', 'Invalid amount', 'Amount must be a positive number, for example 1.5.');
+        amountInput.focus();
+        return;
+    }
+
+    const memoType = memoTypeSelect.value;
+    const memoValue = memoInput.value.trim();
+
+    if (!isValidMemo(memoType, memoValue)) {
+        renderMessage(transactionResult, 'error', 'Invalid memo', memoHint(memoType));
+        memoInput.focus();
+        return;
+    }
+
+    isSubmittingPayment = true;
+    sendPaymentBtn.disabled = true;
+
     renderMessage(transactionResult, 'info', 'Sending payment', 'The transaction is being submitted.');
 
     try {
         const server = getServer();
         const sourceAccount = await server.loadAccount(currentKeypair.publicKey());
 
-        const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+        const builder = new StellarSdk.TransactionBuilder(sourceAccount, {
             fee: StellarSdk.BASE_FEE,
             networkPassphrase: getNetworkPassphrase()
         })
@@ -277,15 +350,26 @@ sendPaymentBtn.addEventListener('click', async () => {
                 asset: StellarSdk.Asset.native(),
                 amount: amount
             }))
-            .setTimeout(30)
-            .build();
+            .setTimeout(30);
+
+        if (memoValue) {
+            builder.addMemo(buildMemo(memoType, memoValue));
+        }
+
+        const transaction = builder.build();
 
         transaction.sign(currentKeypair);
         const result = await server.submitTransaction(transaction);
 
         renderMessage(transactionResult, 'success', 'Payment sent', `Transaction hash: ${result.hash}`);
+        amountInput.value = '';
+        memoInput.value = '';
         loadBalances();
     } catch (e) {
-        renderMessage(transactionResult, 'error', 'Payment failed', e.message || 'The payment could not be submitted.');
+        const detail = e?.response?.data?.extras?.result_codes?.transaction || e.message || 'The payment could not be submitted.';
+        renderMessage(transactionResult, 'error', 'Payment failed', detail);
+    } finally {
+        isSubmittingPayment = false;
+        sendPaymentBtn.disabled = false;
     }
 });
