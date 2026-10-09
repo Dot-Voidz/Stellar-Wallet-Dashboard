@@ -12,6 +12,7 @@ A lightweight browser dashboard for Stellar accounts: generate or load a keypair
 - Generate new Stellar keypairs or load an existing secret key
 - View native XLM and trustline balances via Horizon
 - Send payment transactions, with destination/amount validation and double-submit protection
+- Attach an optional memo to payments (text, ID, hash, or return)
 - Switch between testnet and public network
 - Small Vitest suite for validation helpers (the same helpers `app.js` uses in the browser)
 

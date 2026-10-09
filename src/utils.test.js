@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isValidPublicKey, isValidSecretKey, isValidAmount } from './utils.js';
+import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo } from './utils.js';
 
 describe('isValidPublicKey', () => {
   it('accepts a G-prefixed 56-character key shape', () => {
@@ -50,5 +50,44 @@ describe('isValidAmount', () => {
     expect(isValidAmount(Infinity)).toBe(false);
     expect(isValidAmount(true)).toBe(false);
     expect(isValidAmount(null)).toBe(false);
+  });
+});
+
+describe('isValidMemo', () => {
+  it('treats an empty memo as optional', () => {
+    expect(isValidMemo('text', '')).toBe(true);
+    expect(isValidMemo('text', '   ')).toBe(true);
+    expect(isValidMemo('unknown-type', '')).toBe(true);
+  });
+
+  it('validates text memos by UTF-8 byte length', () => {
+    expect(isValidMemo('text', 'invoice-42')).toBe(true);
+    expect(isValidMemo('text', 'a'.repeat(28))).toBe(true);
+    expect(isValidMemo('text', 'a'.repeat(29))).toBe(false);
+    expect(isValidMemo('text', '€'.repeat(10))).toBe(false);
+  });
+
+  it('validates id memos as unsigned 64-bit integers', () => {
+    expect(isValidMemo('id', '0')).toBe(true);
+    expect(isValidMemo('id', '12345')).toBe(true);
+    expect(isValidMemo('id', '18446744073709551615')).toBe(true);
+    expect(isValidMemo('id', '18446744073709551616')).toBe(false);
+    expect(isValidMemo('id', '-1')).toBe(false);
+    expect(isValidMemo('id', '1.5')).toBe(false);
+    expect(isValidMemo('id', 'abc')).toBe(false);
+  });
+
+  it('validates hash and return memos as 32-byte hex', () => {
+    expect(isValidMemo('hash', 'a'.repeat(64))).toBe(true);
+    expect(isValidMemo('return', 'AB'.repeat(32))).toBe(true);
+    expect(isValidMemo('hash', 'a'.repeat(63))).toBe(false);
+    expect(isValidMemo('hash', 'z'.repeat(64))).toBe(false);
+  });
+
+  it('rejects unknown types and non-string values', () => {
+    expect(isValidMemo('bogus', 'hello')).toBe(false);
+    expect(isValidMemo('text', 123)).toBe(false);
+    expect(isValidMemo('text', null)).toBe(false);
+    expect(isValidMemo('text', undefined)).toBe(false);
   });
 });

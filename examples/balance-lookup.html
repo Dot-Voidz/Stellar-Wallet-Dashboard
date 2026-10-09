@@ -21,7 +21,7 @@
   <script>
     document.getElementById('lookup').addEventListener('click', async () => {
       const address = document.getElementById('address').value.trim();
-      const server = new StellarSdk.Server('https://horizon-testnet.stellar.org');
+      const server = new StellarSdk.Horizon.Server('https://horizon-testnet.stellar.org');
       try {
         const account = await server.loadAccount(address);
         document.getElementById('result').textContent = JSON.stringify(account.balances, null, 2);

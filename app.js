@@ -1,4 +1,4 @@
-import { isValidPublicKey, isValidSecretKey, isValidAmount } from './src/utils.js';
+import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo } from './src/utils.js';
 
 let currentKeypair = null;
 let currentNetwork = 'testnet';
@@ -18,6 +18,8 @@ const balanceChart = document.getElementById('balance-chart');
 const refreshBalancesBtn = document.getElementById('refresh-balances');
 const destinationInput = document.getElementById('destination');
 const amountInput = document.getElementById('amount');
+const memoInput = document.getElementById('memo');
+const memoTypeSelect = document.getElementById('memo-type');
 const sendPaymentBtn = document.getElementById('send-payment');
 const transactionResult = document.getElementById('transaction-result');
 const networkSelect = document.getElementById('network-select');
@@ -202,9 +204,12 @@ function showWalletInfo() {
 
 // Get server based on network
 function getServer() {
-    return currentNetwork === 'public'
-        ? new StellarSdk.Server('https://horizon.stellar.org')
-        : new StellarSdk.Server('https://horizon-testnet.stellar.org');
+    const horizonUrl = currentNetwork === 'public'
+        ? 'https://horizon.stellar.org'
+        : 'https://horizon-testnet.stellar.org';
+
+    // stellar-sdk v11 moved the Horizon client under `Horizon`.
+    return new StellarSdk.Horizon.Server(horizonUrl);
 }
 
 // Get network passphrase
@@ -259,6 +264,31 @@ async function loadBalances(options = {}) {
     }
 }
 
+function buildMemo(type, value) {
+    switch (type) {
+        case 'id':
+            return StellarSdk.Memo.id(value);
+        case 'hash':
+            return StellarSdk.Memo.hash(value);
+        case 'return':
+            return StellarSdk.Memo.return(value);
+        default:
+            return StellarSdk.Memo.text(value);
+    }
+}
+
+function memoHint(type) {
+    switch (type) {
+        case 'id':
+            return 'ID memos must be a whole number between 0 and 18446744073709551615.';
+        case 'hash':
+        case 'return':
+            return 'Hash and return memos must be exactly 64 hexadecimal characters (32 bytes).';
+        default:
+            return 'Text memos can be up to 28 bytes (UTF-8), for example 28 characters of plain text.';
+    }
+}
+
 // Send payment
 sendPaymentBtn.addEventListener('click', async () => {
     if (isSubmittingPayment) return;
@@ -293,6 +323,15 @@ sendPaymentBtn.addEventListener('click', async () => {
         return;
     }
 
+    const memoType = memoTypeSelect.value;
+    const memoValue = memoInput.value.trim();
+
+    if (!isValidMemo(memoType, memoValue)) {
+        renderMessage(transactionResult, 'error', 'Invalid memo', memoHint(memoType));
+        memoInput.focus();
+        return;
+    }
+
     isSubmittingPayment = true;
     sendPaymentBtn.disabled = true;
 
@@ -302,7 +341,7 @@ sendPaymentBtn.addEventListener('click', async () => {
         const server = getServer();
         const sourceAccount = await server.loadAccount(currentKeypair.publicKey());
 
-        const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+        const builder = new StellarSdk.TransactionBuilder(sourceAccount, {
             fee: StellarSdk.BASE_FEE,
             networkPassphrase: getNetworkPassphrase()
         })
@@ -311,14 +350,20 @@ sendPaymentBtn.addEventListener('click', async () => {
                 asset: StellarSdk.Asset.native(),
                 amount: amount
             }))
-            .setTimeout(30)
-            .build();
+            .setTimeout(30);
+
+        if (memoValue) {
+            builder.addMemo(buildMemo(memoType, memoValue));
+        }
+
+        const transaction = builder.build();
 
         transaction.sign(currentKeypair);
         const result = await server.submitTransaction(transaction);
 
         renderMessage(transactionResult, 'success', 'Payment sent', `Transaction hash: ${result.hash}`);
         amountInput.value = '';
+        memoInput.value = '';
         loadBalances();
     } catch (e) {
         const detail = e?.response?.data?.extras?.result_codes?.transaction || e.message || 'The payment could not be submitted.';
