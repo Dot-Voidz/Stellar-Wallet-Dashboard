@@ -5,7 +5,7 @@
 
 A lightweight browser dashboard for Stellar accounts: generate or load a keypair, inspect balances on testnet or mainnet, and build/send simple payments — without standing up your own client scaffolding.
 
-> **Security warning:** This is an educational / developer tool. Secret keys are handled in the browser. Never use funded mainnet keys on untrusted machines or shared demos.
+ **Security warning:** This is an educational / developer tool. Secret keys are handled in the browser. Never use funded mainnet keys on untrusted machines or shared demos.
 
 ## Features
 
@@ -61,15 +61,7 @@ npm test
 | `examples/` | Standalone demo pages |
 | `.github/` | Issue/PR templates and CI |
 
-## Contributing
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
-
-We want **impactful** contributions: payment reliability, safer secret-key UX, accessibility, transaction history, memo support, trustline management, and tests. Typo-only or copy-button farm issues are out of scope for Wave-style work.
-
-## Security
-
-See [SECURITY.md](SECURITY.md). Never paste real mainnet secret keys into issues or PRs.
 
 ## License
 
