@@ -65,6 +65,7 @@ input, select {
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 1rem;
+    min-height: 44px;
 }
 
 .memo-row {
@@ -91,6 +92,7 @@ button {
     font-size: 1rem;
     cursor: pointer;
     transition: background 0.3s;
+    min-height: 44px;
 }
 
 button:hover {
@@ -99,8 +101,13 @@ button:hover {
 
 .button-group {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     margin-bottom: 15px;
+}
+
+.button-group button {
+    flex: 1 1 160px;
 }
 
 .info-box, .result-box {
@@ -259,7 +266,8 @@ button:hover {
 
 .message-dismiss {
     margin-left: auto;
-    padding: 0;
+    padding: 0 4px;
+    min-height: auto;
     background: transparent;
     color: inherit;
     font-size: 1rem;
@@ -373,6 +381,27 @@ button:hover {
 }
 
 @media (max-width: 640px) {
+    body {
+        padding: 12px;
+    }
+
+    header {
+        padding: 20px;
+    }
+
+    header h1 {
+        font-size: 1.5rem;
+    }
+
+    main {
+        padding: 18px;
+    }
+
+    section {
+        margin-bottom: 20px;
+        padding: 16px;
+    }
+
     .chart-row {
         grid-template-columns: 1fr;
         gap: 6px;
@@ -381,5 +410,43 @@ button:hover {
     .chart-value {
         text-align: left;
         white-space: normal;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: 8px;
+    }
+
+    main {
+        padding: 14px;
+    }
+
+    section {
+        padding: 14px;
+    }
+
+    .section-heading {
+        flex-wrap: wrap;
+    }
+
+    .memo-row {
+        flex-direction: column;
+    }
+
+    .memo-row select,
+    .memo-row input {
+        width: 100%;
+    }
+
+    .button-group button,
+    #send-payment,
+    #toggle-secret {
+        width: 100%;
+    }
+
+    .info-box,
+    .result-box {
+        font-size: 0.9rem;
     }
 }
