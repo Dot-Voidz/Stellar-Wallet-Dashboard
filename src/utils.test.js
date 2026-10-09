@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, assetFromBalance, assetsFromBalances, hasTrustline } from './utils.js';
+import {
+  isValidPublicKey,
+  isValidSecretKey,
+  isValidAmount,
+  isValidMemo,
+  assetFromBalance,
+  assetsFromBalances,
+  hasTrustline,
+  describePaymentError,
+  summarizeOperation
+} from './utils.js';
 
 describe('isValidPublicKey', () => {
   it('accepts a G-prefixed 56-character key shape', () => {
@@ -144,5 +154,98 @@ describe('hasTrustline', () => {
   it('handles missing input', () => {
     expect(hasTrustline(undefined, 'USDC', ISSUER)).toBe(false);
     expect(hasTrustline(balances, 'USDC', undefined)).toBe(false);
+  });
+});
+
+const horizonError = (resultCodes, { status = 400, title = 'Transaction Failed' } = {}) => ({
+  response: { status, data: { title, extras: { result_codes: resultCodes } } }
+});
+
+describe('describePaymentError', () => {
+  it('maps op_underfunded to an actionable message', () => {
+    const result = describePaymentError(
+      horizonError({ transaction: 'tx_failed', operations: ['op_underfunded'] })
+    );
+    expect(result.title).toBe('Payment rejected');
+    expect(result.code).toBe('op_underfunded');
+    expect(result.message).toMatch(/too low/i);
+  });
+
+  it('maps a missing destination account', () => {
+    const result = describePaymentError(
+      horizonError({ transaction: 'tx_failed', operations: ['op_no_destination'] })
+    );
+    expect(result.code).toBe('op_no_destination');
+    expect(result.message).toMatch(/destination account/i);
+  });
+
+  it('maps an unfunded source account', () => {
+    const result = describePaymentError(horizonError({ transaction: 'tx_no_source_account' }));
+    expect(result.title).toBe('Payment rejected');
+    expect(result.code).toBe('tx_no_source_account');
+  });
+
+  it('maps HTTP 404 to account not found', () => {
+    const result = describePaymentError({ response: { status: 404, data: {} } });
+    expect(result.title).toBe('Account not found');
+    expect(result.code).toBe('account_not_found');
+  });
+
+  it('maps network failures with no response', () => {
+    expect(describePaymentError(new TypeError('Failed to fetch')).title).toBe('Network problem');
+    expect(describePaymentError({ message: 'request timed out' }).title).toBe('Network problem');
+  });
+
+  it('redacts secret keys from fallback details', () => {
+    const secret = 'S' + 'A'.repeat(55);
+    const result = describePaymentError({
+      message: `boom ${secret}`,
+      response: { status: 500, data: {} }
+    });
+    expect(result.message).not.toContain(secret);
+    expect(result.message).toContain('[redacted secret key]');
+  });
+
+  it('falls back to a generic error for unknown input', () => {
+    expect(describePaymentError(null).title).toBe('Payment failed');
+    expect(describePaymentError('nope').title).toBe('Payment failed');
+  });
+});
+
+const ACCOUNT = 'G' + 'A'.repeat(55);
+
+describe('summarizeOperation', () => {
+  it('summarizes an outgoing native payment', () => {
+    const result = summarizeOperation(
+      { type: 'payment', from: ACCOUNT, to: 'G' + 'B'.repeat(55), amount: '10.0', asset_type: 'native', transaction_successful: true },
+      ACCOUNT
+    );
+    expect(result).toEqual({ label: 'Payment', amount: '10.0 XLM', direction: 'out', successful: true });
+  });
+
+  it('summarizes an incoming credit payment and failed status', () => {
+    const result = summarizeOperation(
+      { type: 'payment', from: 'G' + 'B'.repeat(55), to: ACCOUNT, amount: '5', asset_type: 'credit_alphanum4', asset_code: 'USDC', transaction_successful: false },
+      ACCOUNT
+    );
+    expect(result.amount).toBe('5 USDC');
+    expect(result.direction).toBe('in');
+    expect(result.successful).toBe(false);
+  });
+
+  it('handles create_account from the funder side', () => {
+    const result = summarizeOperation(
+      { type: 'create_account', funder: ACCOUNT, account: 'G' + 'B'.repeat(55), starting_balance: '2.0', transaction_successful: true },
+      ACCOUNT
+    );
+    expect(result.label).toBe('Create account');
+    expect(result.amount).toBe('2.0 XLM');
+    expect(result.direction).toBe('out');
+  });
+
+  it('falls back for unknown types and bad input', () => {
+    expect(summarizeOperation({ type: 'manage_data' }).label).toBe('Manage data');
+    expect(summarizeOperation(null).label).toBe('Operation');
+    expect(summarizeOperation(undefined).successful).toBe(true);
   });
 });

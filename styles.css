@@ -65,6 +65,7 @@ input, select {
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 1rem;
+    min-height: 44px;
 }
 
 .memo-row {
@@ -91,6 +92,7 @@ button {
     font-size: 1rem;
     cursor: pointer;
     transition: background 0.3s;
+    min-height: 44px;
 }
 
 button:hover {
@@ -99,8 +101,13 @@ button:hover {
 
 .button-group {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     margin-bottom: 15px;
+}
+
+.button-group button {
+    flex: 1 1 160px;
 }
 
 .info-box, .result-box {
@@ -257,9 +264,31 @@ button:hover {
     font-size: 0.95rem;
 }
 
+.message-details {
+    margin-top: 8px;
+    font-size: 0.85rem;
+}
+
+.message-details summary {
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.message-details pre {
+    margin-top: 6px;
+    padding: 8px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.05);
+    color: inherit;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.8rem;
+}
+
 .message-dismiss {
     margin-left: auto;
-    padding: 0;
+    padding: 0 4px;
+    min-height: auto;
     background: transparent;
     color: inherit;
     font-size: 1rem;
@@ -286,6 +315,75 @@ button:hover {
     border-bottom: none;
 }
 
+.operations-container {
+    min-height: 60px;
+    display: grid;
+    gap: 8px;
+}
+
+.operation-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f9fafb;
+}
+
+.operation-item.operation-failed {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.operation-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.operation-label {
+    color: #111827;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.operation-time {
+    color: #6b7280;
+    font-size: 0.8rem;
+}
+
+.operation-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.operation-amount {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.operation-amount-in {
+    color: #166534;
+}
+
+.operation-amount-out {
+    color: #991b1b;
+}
+
+.operation-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #991b1b;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
 .success {
     color: #28a745;
     font-weight: 500;
@@ -296,7 +394,104 @@ button:hover {
     font-weight: 500;
 }
 
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.55);
+}
+
+.modal-dialog {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    padding: 22px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+}
+
+.modal-dialog h3 {
+    margin-bottom: 14px;
+    color: #111827;
+}
+
+.modal-summary {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.modal-summary dt {
+    color: #6b7280;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.modal-summary dd {
+    color: #111827;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.modal-actions button {
+    flex: 1 1 140px;
+}
+
+.secondary-button {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.secondary-button:hover {
+    background: #d1d5db;
+}
+
 @media (max-width: 640px) {
+    body {
+        padding: 12px;
+    }
+
+    header {
+        padding: 20px;
+    }
+
+    header h1 {
+        font-size: 1.5rem;
+    }
+
+    main {
+        padding: 18px;
+    }
+
+    section {
+        margin-bottom: 20px;
+        padding: 16px;
+    }
+
     .chart-row {
         grid-template-columns: 1fr;
         gap: 6px;
@@ -305,5 +500,47 @@ button:hover {
     .chart-value {
         text-align: left;
         white-space: normal;
+    }
+
+    .operation-item {
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: 8px;
+    }
+
+    main {
+        padding: 14px;
+    }
+
+    section {
+        padding: 14px;
+    }
+
+    .section-heading {
+        flex-wrap: wrap;
+    }
+
+    .memo-row {
+        flex-direction: column;
+    }
+
+    .memo-row select,
+    .memo-row input {
+        width: 100%;
+    }
+
+    .button-group button,
+    #send-payment,
+    #toggle-secret {
+        width: 100%;
+    }
+
+    .info-box,
+    .result-box {
+        font-size: 0.9rem;
     }
 }

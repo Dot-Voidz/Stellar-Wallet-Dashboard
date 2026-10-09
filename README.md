@@ -61,7 +61,28 @@ npm test
 | `examples/` | Standalone demo pages |
 | `.github/` | Issue/PR templates and CI |
 
+## Troubleshooting
 
+Payment failures are mapped to plain-language messages in the UI, with the raw Horizon code
+kept behind a collapsed **Technical details** disclosure. Common cases:
+
+| UI message | Horizon code | Meaning |
+| --- | --- | --- |
+| Account not found | `tx_no_source_account` / HTTP 404 | The source account is not funded on the selected network. |
+| The destination account does not exist… | `op_no_destination` | The destination account has not been funded yet. |
+| Your balance is too low… | `op_underfunded` | Balance cannot cover the payment plus the network fee. |
+| Network problem | — | The browser could not reach Horizon (offline or blocked). |
+
+Error output never contains secret keys: anything shaped like one is redacted before display.
+
+### Manual test notes (testnet)
+
+1. **Network error** — go offline, then send a payment; expect the *Network problem* message.
+2. **Account not found** — load an unfunded public key, then try to send; expect *Account not found*.
+3. **Missing destination** — send to a valid but unfunded `G...` address; expect the destination message.
+4. **Underfunded** — drain a testnet account, then send more than its balance; expect `op_underfunded`.
+
+`npm test` covers the error-mapping helper (`describePaymentError`) without touching the network.
 
 ## License
 

@@ -50,6 +50,19 @@
                 </div>
             </section>
 
+            <section class="activity-section">
+                <div class="section-heading">
+                    <h2>Recent Activity</h2>
+                    <button id="refresh-operations" class="icon-button" type="button" aria-label="Refresh recent activity">
+                        <span class="refresh-icon" aria-hidden="true">↻</span>
+                        <span class="refresh-label">Refresh</span>
+                    </button>
+                </div>
+                <div id="operations" class="operations-container">
+                    <p class="loading">Load a wallet to view recent activity</p>
+                </div>
+            </section>
+
             <section class="transaction-section">
                 <h2>Send Payment</h2>
                 <div class="input-group">
@@ -90,6 +103,39 @@
                 </select>
             </section>
         </main>
+    </div>
+
+    <div id="confirm-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+        <div class="modal-backdrop" data-close-modal></div>
+        <div class="modal-dialog">
+            <h3 id="confirm-modal-title">Confirm payment</h3>
+            <dl class="modal-summary">
+                <div>
+                    <dt>Destination</dt>
+                    <dd id="confirm-destination"></dd>
+                </div>
+                <div>
+                    <dt>Amount</dt>
+                    <dd id="confirm-amount"></dd>
+                </div>
+                <div>
+                    <dt>Asset</dt>
+                    <dd id="confirm-asset"></dd>
+                </div>
+                <div>
+                    <dt>Memo</dt>
+                    <dd id="confirm-memo"></dd>
+                </div>
+                <div>
+                    <dt>Network fee</dt>
+                    <dd id="confirm-fee"></dd>
+                </div>
+            </dl>
+            <div class="modal-actions">
+                <button type="button" id="confirm-cancel" class="secondary-button">Cancel</button>
+                <button type="button" id="confirm-send">Confirm &amp; Send</button>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stellar-sdk/11.0.1/stellar-sdk.min.js"></script>
