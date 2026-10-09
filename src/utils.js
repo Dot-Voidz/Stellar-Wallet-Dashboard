@@ -64,3 +64,40 @@ export function isValidMemo(type, value) {
       return /^[0-9a-f]{64}$/i.test(trimmed);
   }
 }
+
+/**
+ * Wrap an async task with explicit idle/loading state and single-flight
+ * protection. `onStart` runs when a task begins and `onFinish` always runs
+ * afterwards - including when the task throws - so loading indicators can
+ * never get stuck. A concurrent call while a task is in flight is ignored.
+ */
+export function createAsyncAction({ onStart, onFinish } = {}) {
+  let running = false;
+
+  return {
+    get running() {
+      return running;
+    },
+    get state() {
+      return running ? 'loading' : 'idle';
+    },
+    async run(task) {
+      if (running) {
+        return { status: 'busy', value: undefined, error: undefined };
+      }
+
+      running = true;
+      if (onStart) onStart();
+
+      try {
+        const value = await task();
+        return { status: 'success', value, error: undefined };
+      } catch (error) {
+        return { status: 'error', value: undefined, error };
+      } finally {
+        running = false;
+        if (onFinish) onFinish();
+      }
+    }
+  };
+}

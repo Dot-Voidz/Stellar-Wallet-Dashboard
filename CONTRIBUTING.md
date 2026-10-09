@@ -48,6 +48,17 @@ Use templates in `.github/ISSUE_TEMPLATE/`.
 - Describe how you tested (browser + `npm test` when relevant)
 - Prefer accessibility and error-state improvements over decorative churn
 
+## Testing async UI states
+
+Wallet load, balance refresh, and payment submit all run through `createAsyncAction`
+(`src/utils.js`), which exposes `idle`/`loading` states, always clears the loading flag
+on error, and ignores concurrent clicks. To verify changes:
+
+1. **Load wallet** — click Load Wallet twice quickly; the buttons stay disabled and only one load runs.
+2. **Refresh balances** — click Refresh while a load is in flight; the spinner resets when the request finishes, even if Horizon errors or you go offline.
+3. **Send payment** — double-click Send Payment; only one submission is attempted.
+4. `npm test` covers the helper directly, including the thrown-error and concurrency cases.
+
 ## Drips Wave
 
 If/when this repository is accepted into a Wave program, only maintainer-curated issues will carry Wave labels. Do not apply Wave labels yourself to inflate activity.

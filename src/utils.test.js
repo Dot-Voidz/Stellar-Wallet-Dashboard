@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo } from './utils.js';
+import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, createAsyncAction } from './utils.js';
 
 describe('isValidPublicKey', () => {
   it('accepts a G-prefixed 56-character key shape', () => {
@@ -89,5 +89,61 @@ describe('isValidMemo', () => {
     expect(isValidMemo('text', 123)).toBe(false);
     expect(isValidMemo('text', null)).toBe(false);
     expect(isValidMemo('text', undefined)).toBe(false);
+  });
+});
+
+describe('createAsyncAction', () => {
+  it('tracks loading state and always calls onFinish on success', async () => {
+    const events = [];
+    const action = createAsyncAction({
+      onStart: () => events.push('start'),
+      onFinish: () => events.push('finish')
+    });
+
+    expect(action.state).toBe('idle');
+    const result = await action.run(async () => {
+      expect(action.running).toBe(true);
+      expect(action.state).toBe('loading');
+      return 42;
+    });
+
+    expect(result).toEqual({ status: 'success', value: 42, error: undefined });
+    expect(action.running).toBe(false);
+    expect(events).toEqual(['start', 'finish']);
+  });
+
+  it('resets loading state and returns the error when the task throws', async () => {
+    const action = createAsyncAction();
+    const result = await action.run(async () => {
+      throw new Error('boom');
+    });
+
+    expect(result.status).toBe('error');
+    expect(result.error.message).toBe('boom');
+    expect(action.running).toBe(false);
+  });
+
+  it('ignores concurrent runs while a task is in flight', async () => {
+    const action = createAsyncAction();
+    let release;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    let starts = 0;
+
+    const first = action.run(async () => {
+      starts += 1;
+      await gate;
+      return 'first';
+    });
+    const second = await action.run(async () => {
+      starts += 1;
+      return 'second';
+    });
+
+    expect(second.status).toBe('busy');
+    release();
+    expect((await first).value).toBe('first');
+    expect(starts).toBe(1);
   });
 });
