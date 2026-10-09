@@ -1,3 +1,7 @@
+import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError, summarizeOperation, createAsyncAction } from './src/utils.js';
+
+let currentKeypair = null;
+let currentNetwork = 'testnet';
 import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError, summarizeOperation, assetsFromBalances, hasTrustline } from './src/utils.js';
 
 let currentKeypair = null;
@@ -41,6 +45,33 @@ const confirmSendBtn = document.getElementById('confirm-send');
 let confirmAction = null;
 let lastFocusedElement = null;
 
+// Async UI state machines: each flow has idle/loading states, resets on error,
+// and ignores concurrent clicks while a task is already in flight.
+const walletAction = createAsyncAction({
+    onStart: () => {
+        loadWalletBtn.disabled = true;
+        generateWalletBtn.disabled = true;
+    },
+    onFinish: () => {
+        loadWalletBtn.disabled = false;
+        generateWalletBtn.disabled = false;
+    }
+});
+
+const balanceAction = createAsyncAction({
+    onStart: () => setRefreshButtonState(true),
+    onFinish: () => setRefreshButtonState(false)
+});
+
+const paymentAction = createAsyncAction({
+    onStart: () => {
+        sendPaymentBtn.disabled = true;
+    },
+    onFinish: () => {
+        sendPaymentBtn.disabled = false;
+    }
+});
+
 // Toggle secret key visibility
 toggleSecretBtn.addEventListener('click', () => {
     if (secretKeyInput.type === 'password') {
@@ -56,8 +87,10 @@ toggleSecretBtn.addEventListener('click', () => {
 networkSelect.addEventListener('change', (e) => {
     currentNetwork = e.target.value;
     if (currentKeypair) {
-        loadBalances();
-        loadOperations();
+        balanceAction.run(async () => {
+            await loadBalances();
+            await loadOperations();
+        });
     }
 });
 
@@ -74,25 +107,29 @@ loadWalletBtn.addEventListener('click', () => {
         return;
     }
 
-    try {
-        currentKeypair = StellarSdk.Keypair.fromSecret(secret);
-        showWalletInfo();
-        renderMessage(walletFeedback, 'success', 'Wallet loaded', 'Balances will refresh shortly.');
-        loadBalances();
-        loadOperations();
-    } catch (e) {
-        renderMessage(walletFeedback, 'error', 'Invalid secret key', e.message || 'The secret key could not be parsed.');
-    }
+    walletAction.run(async () => {
+        try {
+            currentKeypair = StellarSdk.Keypair.fromSecret(secret);
+            showWalletInfo();
+            renderMessage(walletFeedback, 'success', 'Wallet loaded', 'Balances will refresh shortly.');
+            await loadBalances();
+            await loadOperations();
+        } catch (e) {
+            renderMessage(walletFeedback, 'error', 'Invalid secret key', e.message || 'The secret key could not be parsed.');
+        }
+    });
 });
 
 // Generate new wallet
 generateWalletBtn.addEventListener('click', () => {
-    currentKeypair = StellarSdk.Keypair.random();
-    secretKeyInput.value = currentKeypair.secret();
-    showWalletInfo();
-    renderMessage(walletFeedback, 'success', 'Wallet generated', 'Save the secret key somewhere safe.');
-    loadBalances();
-    loadOperations();
+    walletAction.run(async () => {
+        currentKeypair = StellarSdk.Keypair.random();
+        secretKeyInput.value = currentKeypair.secret();
+        showWalletInfo();
+        renderMessage(walletFeedback, 'success', 'Wallet generated', 'Save the secret key somewhere safe.');
+        await loadBalances();
+        await loadOperations();
+    });
 });
 
 refreshBalancesBtn.addEventListener('click', () => {
@@ -101,7 +138,7 @@ refreshBalancesBtn.addEventListener('click', () => {
         return;
     }
 
-    loadBalances({ manualRefresh: true });
+    balanceAction.run(() => loadBalances());
 });
 
 refreshOperationsBtn.addEventListener('click', () => {
@@ -353,13 +390,8 @@ function getNetworkPassphrase() {
 }
 
 // Load balances
-async function loadBalances(options = {}) {
+async function loadBalances() {
     if (!currentKeypair) return;
-
-    const { manualRefresh = false } = options;
-    if (manualRefresh) {
-        setRefreshButtonState(true);
-    }
 
     balancesContainer.innerHTML = '<p class="loading">Loading balances...</p>';
 
@@ -393,10 +425,6 @@ async function loadBalances(options = {}) {
     } catch (e) {
         renderBalanceChart([]);
         renderMessage(balancesContainer, 'error', 'Unable to load balances', e.message || 'The account could not be reached.');
-    } finally {
-        if (manualRefresh) {
-            setRefreshButtonState(false);
-        }
     }
 }
 
@@ -512,7 +540,7 @@ function memoHint(type) {
 
 // Send payment
 sendPaymentBtn.addEventListener('click', () => {
-    if (isSubmittingPayment) return;
+    if (paymentAction.running) return;
 
     if (!currentKeypair) {
         renderMessage(transactionResult, 'error', 'Wallet required', 'Please load or generate a wallet first.');
@@ -578,6 +606,42 @@ sendPaymentBtn.addEventListener('click', () => {
     });
 });
 
+function submitPayment({ destination, amount, memoType, memoValue }) {
+    paymentAction.run(async () => {
+        renderMessage(transactionResult, 'info', 'Sending payment', 'The transaction is being submitted.');
+
+        try {
+            const server = getServer();
+            const sourceAccount = await server.loadAccount(currentKeypair.publicKey());
+
+            const builder = new StellarSdk.TransactionBuilder(sourceAccount, {
+                fee: StellarSdk.BASE_FEE,
+                networkPassphrase: getNetworkPassphrase()
+            })
+                .addOperation(StellarSdk.Operation.payment({
+                    destination: destination,
+                    asset: StellarSdk.Asset.native(),
+                    amount: amount
+                }))
+                .setTimeout(30);
+
+            if (memoValue) {
+                builder.addMemo(buildMemo(memoType, memoValue));
+            }
+
+            const transaction = builder.build();
+
+            transaction.sign(currentKeypair);
+            const result = await server.submitTransaction(transaction);
+
+            renderMessage(transactionResult, 'success', 'Payment sent', `Transaction hash: ${result.hash}`);
+            amountInput.value = '';
+            memoInput.value = '';
+            loadBalances();
+            loadOperations();
+        } catch (e) {
+            const failure = describePaymentError(e);
+            renderMessage(transactionResult, 'error', failure.title, failure.message, failure.code);
 async function submitPayment({ destination, amount, asset = StellarSdk.Asset.native(), memoType, memoValue }) {
     if (isSubmittingPayment) return;
 
@@ -604,22 +668,5 @@ async function submitPayment({ destination, amount, asset = StellarSdk.Asset.nat
         if (memoValue) {
             builder.addMemo(buildMemo(memoType, memoValue));
         }
-
-        const transaction = builder.build();
-
-        transaction.sign(currentKeypair);
-        const result = await server.submitTransaction(transaction);
-
-        renderMessage(transactionResult, 'success', 'Payment sent', `Transaction hash: ${result.hash}`);
-        amountInput.value = '';
-        memoInput.value = '';
-        loadBalances();
-        loadOperations();
-    } catch (e) {
-        const failure = describePaymentError(e);
-        renderMessage(transactionResult, 'error', failure.title, failure.message, failure.code);
-    } finally {
-        isSubmittingPayment = false;
-        sendPaymentBtn.disabled = false;
-    }
+    });
 }
