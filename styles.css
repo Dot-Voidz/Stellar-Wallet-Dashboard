@@ -294,6 +294,75 @@ button:hover {
     border-bottom: none;
 }
 
+.operations-container {
+    min-height: 60px;
+    display: grid;
+    gap: 8px;
+}
+
+.operation-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f9fafb;
+}
+
+.operation-item.operation-failed {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.operation-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.operation-label {
+    color: #111827;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.operation-time {
+    color: #6b7280;
+    font-size: 0.8rem;
+}
+
+.operation-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.operation-amount {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.operation-amount-in {
+    color: #166534;
+}
+
+.operation-amount-out {
+    color: #991b1b;
+}
+
+.operation-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #991b1b;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
 .success {
     color: #28a745;
     font-weight: 500;
@@ -410,6 +479,10 @@ button:hover {
     .chart-value {
         text-align: left;
         white-space: normal;
+    }
+
+    .operation-item {
+        flex-wrap: wrap;
     }
 }
 
