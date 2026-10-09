@@ -1,8 +1,8 @@
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError } from './src/utils.js';
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, summarizeOperation } from './src/utils.js';
+import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError, summarizeOperation, assetsFromBalances, hasTrustline } from './src/utils.js';
 
 let currentKeypair = null;
 let currentNetwork = 'testnet';
+let currentBalances = [];
 let isSubmittingPayment = false;
 
 // DOM Elements
@@ -20,6 +20,7 @@ const refreshBalancesBtn = document.getElementById('refresh-balances');
 const operationsContainer = document.getElementById('operations');
 const refreshOperationsBtn = document.getElementById('refresh-operations');
 const destinationInput = document.getElementById('destination');
+const assetSelect = document.getElementById('asset-select');
 const amountInput = document.getElementById('amount');
 const memoInput = document.getElementById('memo');
 const memoTypeSelect = document.getElementById('memo-type');
@@ -203,10 +204,10 @@ function handleModalKeydown(event) {
     }
 }
 
-function openConfirmModal({ destination, amount, memoType, memoValue, onConfirm }) {
+function openConfirmModal({ destination, amount, assetLabel, memoType, memoValue, onConfirm }) {
     confirmDestination.textContent = destination;
-    confirmAmount.textContent = `${amount} XLM`;
-    confirmAsset.textContent = 'XLM (native)';
+    confirmAmount.textContent = `${amount} ${assetLabel}`;
+    confirmAsset.textContent = assetLabel;
     confirmMemo.textContent = memoValue ? `${memoType}: ${memoValue}` : 'None';
     confirmFee.textContent = `${networkFeeInXlm()} XLM (${StellarSdk.BASE_FEE} stroops)`;
 
@@ -304,7 +305,34 @@ function showWalletInfo() {
     walletInfo.classList.remove('hidden');
     publicKeyDisplay.textContent = currentKeypair.publicKey();
     secretKeyDisplay.textContent = currentKeypair.secret();
+    currentBalances = [];
     renderBalanceChart([]);
+    populateAssetOptions([]);
+}
+
+function populateAssetOptions(balances) {
+    if (!assetSelect) return;
+
+    const previous = assetSelect.value;
+    assetSelect.innerHTML = '';
+
+    assetsFromBalances(balances).forEach((asset) => {
+        const option = document.createElement('option');
+        option.value = asset.isNative ? 'native' : `${asset.code}:${asset.issuer}`;
+        option.textContent = asset.label;
+        assetSelect.appendChild(option);
+    });
+
+    if (!assetSelect.options.length) {
+        const fallback = document.createElement('option');
+        fallback.value = 'native';
+        fallback.textContent = 'XLM (native)';
+        assetSelect.appendChild(fallback);
+    }
+
+    if (Array.from(assetSelect.options).some((option) => option.value === previous)) {
+        assetSelect.value = previous;
+    }
 }
 
 // Get server based on network
@@ -338,6 +366,9 @@ async function loadBalances(options = {}) {
     try {
         const server = getServer();
         const account = await server.loadAccount(currentKeypair.publicKey());
+
+        currentBalances = account.balances;
+        populateAssetOptions(account.balances);
 
         balancesContainer.innerHTML = '';
         if (!account.balances.length) {
@@ -522,16 +553,32 @@ sendPaymentBtn.addEventListener('click', () => {
         return;
     }
 
+    const assetChoice = assetSelect ? assetSelect.value : 'native';
+    let paymentAsset = StellarSdk.Asset.native();
+    let assetLabel = 'XLM (native)';
+
+    if (assetChoice !== 'native') {
+        const [code, issuer] = assetChoice.split(':');
+        if (!hasTrustline(currentBalances, code, issuer)) {
+            renderMessage(transactionResult, 'error', 'Unknown asset', 'Select an asset your wallet holds a trustline for.');
+            return;
+        }
+        paymentAsset = new StellarSdk.Asset(code, issuer);
+        assetLabel = assetSelect.options[assetSelect.selectedIndex]?.textContent
+            || `${code} (${issuer.slice(0, 6)}…${issuer.slice(-4)})`;
+    }
+
     openConfirmModal({
         destination,
         amount,
+        assetLabel,
         memoType,
         memoValue,
-        onConfirm: () => submitPayment({ destination, amount, memoType, memoValue })
+        onConfirm: () => submitPayment({ destination, amount, asset: paymentAsset, memoType, memoValue })
     });
 });
 
-async function submitPayment({ destination, amount, memoType, memoValue }) {
+async function submitPayment({ destination, amount, asset = StellarSdk.Asset.native(), memoType, memoValue }) {
     if (isSubmittingPayment) return;
 
     isSubmittingPayment = true;
@@ -549,7 +596,7 @@ async function submitPayment({ destination, amount, memoType, memoValue }) {
         })
             .addOperation(StellarSdk.Operation.payment({
                 destination: destination,
-                asset: StellarSdk.Asset.native(),
+                asset: asset,
                 amount: amount
             }))
             .setTimeout(30);

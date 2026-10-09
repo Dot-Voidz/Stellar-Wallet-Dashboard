@@ -70,7 +70,13 @@
                     <input type="text" id="destination" placeholder="G...">
                 </div>
                 <div class="input-group">
-                    <label for="amount">Amount (XLM):</label>
+                    <label for="asset-select">Asset:</label>
+                    <select id="asset-select" aria-label="Asset to send">
+                        <option value="native">XLM (native)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="amount">Amount:</label>
                     <input type="number" id="amount" step="0.0000001" placeholder="0.0">
                 </div>
                 <div class="input-group">
