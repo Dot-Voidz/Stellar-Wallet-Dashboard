@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo } from './utils.js';
+import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError } from './utils.js';
 
 describe('isValidPublicKey', () => {
   it('accepts a G-prefixed 56-character key shape', () => {
@@ -89,5 +89,60 @@ describe('isValidMemo', () => {
     expect(isValidMemo('text', 123)).toBe(false);
     expect(isValidMemo('text', null)).toBe(false);
     expect(isValidMemo('text', undefined)).toBe(false);
+  });
+});
+
+const horizonError = (resultCodes, { status = 400, title = 'Transaction Failed' } = {}) => ({
+  response: { status, data: { title, extras: { result_codes: resultCodes } } }
+});
+
+describe('describePaymentError', () => {
+  it('maps op_underfunded to an actionable message', () => {
+    const result = describePaymentError(
+      horizonError({ transaction: 'tx_failed', operations: ['op_underfunded'] })
+    );
+    expect(result.title).toBe('Payment rejected');
+    expect(result.code).toBe('op_underfunded');
+    expect(result.message).toMatch(/too low/i);
+  });
+
+  it('maps a missing destination account', () => {
+    const result = describePaymentError(
+      horizonError({ transaction: 'tx_failed', operations: ['op_no_destination'] })
+    );
+    expect(result.code).toBe('op_no_destination');
+    expect(result.message).toMatch(/destination account/i);
+  });
+
+  it('maps an unfunded source account', () => {
+    const result = describePaymentError(horizonError({ transaction: 'tx_no_source_account' }));
+    expect(result.title).toBe('Payment rejected');
+    expect(result.code).toBe('tx_no_source_account');
+  });
+
+  it('maps HTTP 404 to account not found', () => {
+    const result = describePaymentError({ response: { status: 404, data: {} } });
+    expect(result.title).toBe('Account not found');
+    expect(result.code).toBe('account_not_found');
+  });
+
+  it('maps network failures with no response', () => {
+    expect(describePaymentError(new TypeError('Failed to fetch')).title).toBe('Network problem');
+    expect(describePaymentError({ message: 'request timed out' }).title).toBe('Network problem');
+  });
+
+  it('redacts secret keys from fallback details', () => {
+    const secret = 'S' + 'A'.repeat(55);
+    const result = describePaymentError({
+      message: `boom ${secret}`,
+      response: { status: 500, data: {} }
+    });
+    expect(result.message).not.toContain(secret);
+    expect(result.message).toContain('[redacted secret key]');
+  });
+
+  it('falls back to a generic error for unknown input', () => {
+    expect(describePaymentError(null).title).toBe('Payment failed');
+    expect(describePaymentError('nope').title).toBe('Payment failed');
   });
 });
