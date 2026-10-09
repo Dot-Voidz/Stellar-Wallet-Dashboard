@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError } from './utils.js';
+import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, summarizeOperation } from './utils.js';
 
 describe('isValidPublicKey', () => {
   it('accepts a G-prefixed 56-character key shape', () => {
@@ -144,5 +145,40 @@ describe('describePaymentError', () => {
   it('falls back to a generic error for unknown input', () => {
     expect(describePaymentError(null).title).toBe('Payment failed');
     expect(describePaymentError('nope').title).toBe('Payment failed');
+const ACCOUNT = 'G' + 'A'.repeat(55);
+
+describe('summarizeOperation', () => {
+  it('summarizes an outgoing native payment', () => {
+    const result = summarizeOperation(
+      { type: 'payment', from: ACCOUNT, to: 'G' + 'B'.repeat(55), amount: '10.0', asset_type: 'native', transaction_successful: true },
+      ACCOUNT
+    );
+    expect(result).toEqual({ label: 'Payment', amount: '10.0 XLM', direction: 'out', successful: true });
+  });
+
+  it('summarizes an incoming credit payment and failed status', () => {
+    const result = summarizeOperation(
+      { type: 'payment', from: 'G' + 'B'.repeat(55), to: ACCOUNT, amount: '5', asset_type: 'credit_alphanum4', asset_code: 'USDC', transaction_successful: false },
+      ACCOUNT
+    );
+    expect(result.amount).toBe('5 USDC');
+    expect(result.direction).toBe('in');
+    expect(result.successful).toBe(false);
+  });
+
+  it('handles create_account from the funder side', () => {
+    const result = summarizeOperation(
+      { type: 'create_account', funder: ACCOUNT, account: 'G' + 'B'.repeat(55), starting_balance: '2.0', transaction_successful: true },
+      ACCOUNT
+    );
+    expect(result.label).toBe('Create account');
+    expect(result.amount).toBe('2.0 XLM');
+    expect(result.direction).toBe('out');
+  });
+
+  it('falls back for unknown types and bad input', () => {
+    expect(summarizeOperation({ type: 'manage_data' }).label).toBe('Manage data');
+    expect(summarizeOperation(null).label).toBe('Operation');
+    expect(summarizeOperation(undefined).successful).toBe(true);
   });
 });
