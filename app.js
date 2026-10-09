@@ -1,4 +1,4 @@
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, createAsyncAction } from './src/utils.js';
+import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError, summarizeOperation, createAsyncAction } from './src/utils.js';
 
 let currentKeypair = null;
 let currentNetwork = 'testnet';
@@ -15,6 +15,8 @@ const secretKeyDisplay = document.getElementById('secret-key-display');
 const balancesContainer = document.getElementById('balances');
 const balanceChart = document.getElementById('balance-chart');
 const refreshBalancesBtn = document.getElementById('refresh-balances');
+const operationsContainer = document.getElementById('operations');
+const refreshOperationsBtn = document.getElementById('refresh-operations');
 const destinationInput = document.getElementById('destination');
 const amountInput = document.getElementById('amount');
 const memoInput = document.getElementById('memo');
@@ -22,6 +24,19 @@ const memoTypeSelect = document.getElementById('memo-type');
 const sendPaymentBtn = document.getElementById('send-payment');
 const transactionResult = document.getElementById('transaction-result');
 const networkSelect = document.getElementById('network-select');
+
+// Confirmation modal elements
+const confirmModal = document.getElementById('confirm-modal');
+const confirmDestination = document.getElementById('confirm-destination');
+const confirmAmount = document.getElementById('confirm-amount');
+const confirmAsset = document.getElementById('confirm-asset');
+const confirmMemo = document.getElementById('confirm-memo');
+const confirmFee = document.getElementById('confirm-fee');
+const confirmCancelBtn = document.getElementById('confirm-cancel');
+const confirmSendBtn = document.getElementById('confirm-send');
+
+let confirmAction = null;
+let lastFocusedElement = null;
 
 // Async UI state machines: each flow has idle/loading states, resets on error,
 // and ignores concurrent clicks while a task is already in flight.
@@ -65,7 +80,10 @@ toggleSecretBtn.addEventListener('click', () => {
 networkSelect.addEventListener('change', (e) => {
     currentNetwork = e.target.value;
     if (currentKeypair) {
-        balanceAction.run(() => loadBalances());
+        balanceAction.run(async () => {
+            await loadBalances();
+            await loadOperations();
+        });
     }
 });
 
@@ -88,6 +106,7 @@ loadWalletBtn.addEventListener('click', () => {
             showWalletInfo();
             renderMessage(walletFeedback, 'success', 'Wallet loaded', 'Balances will refresh shortly.');
             await loadBalances();
+            await loadOperations();
         } catch (e) {
             renderMessage(walletFeedback, 'error', 'Invalid secret key', e.message || 'The secret key could not be parsed.');
         }
@@ -102,6 +121,7 @@ generateWalletBtn.addEventListener('click', () => {
         showWalletInfo();
         renderMessage(walletFeedback, 'success', 'Wallet generated', 'Save the secret key somewhere safe.');
         await loadBalances();
+        await loadOperations();
     });
 });
 
@@ -114,6 +134,15 @@ refreshBalancesBtn.addEventListener('click', () => {
     balanceAction.run(() => loadBalances());
 });
 
+refreshOperationsBtn.addEventListener('click', () => {
+    if (!currentKeypair) {
+        renderMessage(walletFeedback, 'error', 'No wallet loaded', 'Load or generate a wallet before refreshing activity.');
+        return;
+    }
+
+    loadOperations();
+});
+
 function setRefreshButtonState(isLoading) {
     if (!refreshBalancesBtn) return;
 
@@ -124,7 +153,7 @@ function setRefreshButtonState(isLoading) {
         : '<span class="refresh-icon" aria-hidden="true">↻</span><span class="refresh-label">Refresh</span>';
 }
 
-function renderMessage(container, type, title, message) {
+function renderMessage(container, type, title, message, detail) {
     if (!container) return;
 
     container.innerHTML = '';
@@ -146,6 +175,18 @@ function renderMessage(container, type, title, message) {
     body.appendChild(titleEl);
     body.appendChild(messageEl);
 
+    if (detail) {
+        const detailsEl = document.createElement('details');
+        detailsEl.className = 'message-details';
+        const summaryEl = document.createElement('summary');
+        summaryEl.textContent = 'Technical details';
+        const preEl = document.createElement('pre');
+        preEl.textContent = detail;
+        detailsEl.appendChild(summaryEl);
+        detailsEl.appendChild(preEl);
+        body.appendChild(detailsEl);
+    }
+
     const dismissButton = document.createElement('button');
     dismissButton.type = 'button';
     dismissButton.className = 'message-dismiss';
@@ -163,6 +204,71 @@ function renderMessage(container, type, title, message) {
     messageBox.appendChild(dismissButton);
     container.appendChild(messageBox);
 }
+
+function networkFeeInXlm() {
+    return (Number(StellarSdk.BASE_FEE) / 10000000).toFixed(7);
+}
+
+function handleModalKeydown(event) {
+    if (event.key === 'Escape') {
+        closeConfirmModal();
+        return;
+    }
+
+    if (event.key === 'Tab') {
+        const focusable = confirmModal.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable.length) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    }
+}
+
+function openConfirmModal({ destination, amount, memoType, memoValue, onConfirm }) {
+    confirmDestination.textContent = destination;
+    confirmAmount.textContent = `${amount} XLM`;
+    confirmAsset.textContent = 'XLM (native)';
+    confirmMemo.textContent = memoValue ? `${memoType}: ${memoValue}` : 'None';
+    confirmFee.textContent = `${networkFeeInXlm()} XLM (${StellarSdk.BASE_FEE} stroops)`;
+
+    confirmAction = onConfirm;
+    lastFocusedElement = document.activeElement;
+    confirmModal.classList.remove('hidden');
+    document.addEventListener('keydown', handleModalKeydown);
+    confirmSendBtn.focus();
+}
+
+function closeConfirmModal() {
+    confirmModal.classList.add('hidden');
+    confirmAction = null;
+    document.removeEventListener('keydown', handleModalKeydown);
+    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+        lastFocusedElement.focus();
+    }
+}
+
+confirmCancelBtn.addEventListener('click', closeConfirmModal);
+confirmSendBtn.addEventListener('click', () => {
+    const action = confirmAction;
+    closeConfirmModal();
+    if (action) {
+        action();
+    }
+});
+
+document.querySelectorAll('[data-close-modal]').forEach((element) => {
+    element.addEventListener('click', closeConfirmModal);
+});
 
 function formatAssetLabel(balance) {
     return balance.asset_type === 'native' ? 'XLM' : balance.asset_code;
@@ -285,6 +391,91 @@ async function loadBalances() {
     }
 }
 
+function formatOperationTime(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString();
+}
+
+function renderOperation(operation) {
+    const summary = summarizeOperation(operation, currentKeypair.publicKey());
+
+    const row = document.createElement('div');
+    row.className = `operation-item${summary.successful ? '' : ' operation-failed'}`;
+
+    const main = document.createElement('div');
+    main.className = 'operation-main';
+
+    const label = document.createElement('span');
+    label.className = 'operation-label';
+    label.textContent = summary.direction === 'in'
+        ? `${summary.label} received`
+        : summary.direction === 'out'
+            ? `${summary.label} sent`
+            : summary.label;
+
+    const time = document.createElement('span');
+    time.className = 'operation-time';
+    time.textContent = formatOperationTime(operation.created_at);
+
+    main.appendChild(label);
+    main.appendChild(time);
+
+    const meta = document.createElement('div');
+    meta.className = 'operation-meta';
+
+    if (summary.amount) {
+        const amount = document.createElement('span');
+        amount.className = `operation-amount operation-amount-${summary.direction}`;
+        amount.textContent = summary.amount;
+        meta.appendChild(amount);
+    }
+
+    if (!summary.successful) {
+        const badge = document.createElement('span');
+        badge.className = 'operation-badge';
+        badge.textContent = 'failed';
+        meta.appendChild(badge);
+    }
+
+    row.appendChild(main);
+    row.appendChild(meta);
+    return row;
+}
+
+async function loadOperations() {
+    if (!currentKeypair || !operationsContainer) return;
+
+    operationsContainer.innerHTML = '<p class="loading">Loading recent activity...</p>';
+
+    try {
+        const server = getServer();
+        const page = await server.operations()
+            .forAccount(currentKeypair.publicKey())
+            .order('desc')
+            .limit(10)
+            .call();
+
+        const records = page.records || [];
+        if (!records.length) {
+            operationsContainer.innerHTML = '<p class="empty-state">No recent operations for this account yet.</p>';
+            return;
+        }
+
+        operationsContainer.innerHTML = '';
+        records.forEach((operation) => {
+            operationsContainer.appendChild(renderOperation(operation));
+        });
+    } catch (e) {
+        if (e?.response?.status === 404) {
+            operationsContainer.innerHTML = '<p class="empty-state">This account has no activity yet.</p>';
+            return;
+        }
+        renderMessage(operationsContainer, 'error', 'Unable to load activity', e.message || 'Recent operations could not be retrieved.');
+    }
+}
+
 function buildMemo(type, value) {
     switch (type) {
         case 'id':
@@ -353,6 +544,16 @@ sendPaymentBtn.addEventListener('click', () => {
         return;
     }
 
+    openConfirmModal({
+        destination,
+        amount,
+        memoType,
+        memoValue,
+        onConfirm: () => submitPayment({ destination, amount, memoType, memoValue })
+    });
+});
+
+function submitPayment({ destination, amount, memoType, memoValue }) {
     paymentAction.run(async () => {
         renderMessage(transactionResult, 'info', 'Sending payment', 'The transaction is being submitted.');
 
@@ -384,9 +585,10 @@ sendPaymentBtn.addEventListener('click', () => {
             amountInput.value = '';
             memoInput.value = '';
             loadBalances();
+            loadOperations();
         } catch (e) {
-            const detail = e?.response?.data?.extras?.result_codes?.transaction || e.message || 'The payment could not be submitted.';
-            renderMessage(transactionResult, 'error', 'Payment failed', detail);
+            const failure = describePaymentError(e);
+            renderMessage(transactionResult, 'error', failure.title, failure.message, failure.code);
         }
     });
-});
+}
