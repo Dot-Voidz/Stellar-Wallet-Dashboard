@@ -1,7 +1,8 @@
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo } from './src/utils.js';
+import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, assetsFromBalances, hasTrustline } from './src/utils.js';
 
 let currentKeypair = null;
 let currentNetwork = 'testnet';
+let currentBalances = [];
 let isSubmittingPayment = false;
 
 // DOM Elements
@@ -17,6 +18,7 @@ const balancesContainer = document.getElementById('balances');
 const balanceChart = document.getElementById('balance-chart');
 const refreshBalancesBtn = document.getElementById('refresh-balances');
 const destinationInput = document.getElementById('destination');
+const assetSelect = document.getElementById('asset-select');
 const amountInput = document.getElementById('amount');
 const memoInput = document.getElementById('memo');
 const memoTypeSelect = document.getElementById('memo-type');
@@ -199,7 +201,34 @@ function showWalletInfo() {
     walletInfo.classList.remove('hidden');
     publicKeyDisplay.textContent = currentKeypair.publicKey();
     secretKeyDisplay.textContent = currentKeypair.secret();
+    currentBalances = [];
     renderBalanceChart([]);
+    populateAssetOptions([]);
+}
+
+function populateAssetOptions(balances) {
+    if (!assetSelect) return;
+
+    const previous = assetSelect.value;
+    assetSelect.innerHTML = '';
+
+    assetsFromBalances(balances).forEach((asset) => {
+        const option = document.createElement('option');
+        option.value = asset.isNative ? 'native' : `${asset.code}:${asset.issuer}`;
+        option.textContent = asset.label;
+        assetSelect.appendChild(option);
+    });
+
+    if (!assetSelect.options.length) {
+        const fallback = document.createElement('option');
+        fallback.value = 'native';
+        fallback.textContent = 'XLM (native)';
+        assetSelect.appendChild(fallback);
+    }
+
+    if (Array.from(assetSelect.options).some((option) => option.value === previous)) {
+        assetSelect.value = previous;
+    }
 }
 
 // Get server based on network
@@ -233,6 +262,9 @@ async function loadBalances(options = {}) {
     try {
         const server = getServer();
         const account = await server.loadAccount(currentKeypair.publicKey());
+
+        currentBalances = account.balances;
+        populateAssetOptions(account.balances);
 
         balancesContainer.innerHTML = '';
         if (!account.balances.length) {
@@ -332,6 +364,18 @@ sendPaymentBtn.addEventListener('click', async () => {
         return;
     }
 
+    const assetChoice = assetSelect ? assetSelect.value : 'native';
+    let paymentAsset = StellarSdk.Asset.native();
+
+    if (assetChoice !== 'native') {
+        const [code, issuer] = assetChoice.split(':');
+        if (!hasTrustline(currentBalances, code, issuer)) {
+            renderMessage(transactionResult, 'error', 'Unknown asset', 'Select an asset your wallet holds a trustline for.');
+            return;
+        }
+        paymentAsset = new StellarSdk.Asset(code, issuer);
+    }
+
     isSubmittingPayment = true;
     sendPaymentBtn.disabled = true;
 
@@ -347,7 +391,7 @@ sendPaymentBtn.addEventListener('click', async () => {
         })
             .addOperation(StellarSdk.Operation.payment({
                 destination: destination,
-                asset: StellarSdk.Asset.native(),
+                asset: paymentAsset,
                 amount: amount
             }))
             .setTimeout(30);
