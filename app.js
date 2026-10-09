@@ -1,3 +1,4 @@
+import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError } from './src/utils.js';
 import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, summarizeOperation } from './src/utils.js';
 
 let currentKeypair = null;
@@ -121,7 +122,7 @@ function setRefreshButtonState(isLoading) {
         : '<span class="refresh-icon" aria-hidden="true">↻</span><span class="refresh-label">Refresh</span>';
 }
 
-function renderMessage(container, type, title, message) {
+function renderMessage(container, type, title, message, detail) {
     if (!container) return;
 
     container.innerHTML = '';
@@ -142,6 +143,18 @@ function renderMessage(container, type, title, message) {
     messageEl.textContent = message;
     body.appendChild(titleEl);
     body.appendChild(messageEl);
+
+    if (detail) {
+        const detailsEl = document.createElement('details');
+        detailsEl.className = 'message-details';
+        const summaryEl = document.createElement('summary');
+        summaryEl.textContent = 'Technical details';
+        const preEl = document.createElement('pre');
+        preEl.textContent = detail;
+        detailsEl.appendChild(summaryEl);
+        detailsEl.appendChild(preEl);
+        body.appendChild(detailsEl);
+    }
 
     const dismissButton = document.createElement('button');
     dismissButton.type = 'button';
@@ -556,8 +569,8 @@ async function submitPayment({ destination, amount, memoType, memoValue }) {
         loadBalances();
         loadOperations();
     } catch (e) {
-        const detail = e?.response?.data?.extras?.result_codes?.transaction || e.message || 'The payment could not be submitted.';
-        renderMessage(transactionResult, 'error', 'Payment failed', detail);
+        const failure = describePaymentError(e);
+        renderMessage(transactionResult, 'error', failure.title, failure.message, failure.code);
     } finally {
         isSubmittingPayment = false;
         sendPaymentBtn.disabled = false;
