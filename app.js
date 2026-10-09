@@ -1,5 +1,8 @@
+import { isValidPublicKey, isValidSecretKey, isValidAmount } from './src/utils.js';
+
 let currentKeypair = null;
 let currentNetwork = 'testnet';
+let isSubmittingPayment = false;
 
 // DOM Elements
 const secretKeyInput = document.getElementById('secret-key');
@@ -43,6 +46,11 @@ loadWalletBtn.addEventListener('click', () => {
     const secret = secretKeyInput.value.trim();
     if (!secret) {
         renderMessage(walletFeedback, 'error', 'Missing secret key', 'Please enter a secret key or generate a new wallet.');
+        return;
+    }
+
+    if (!isValidSecretKey(secret)) {
+        renderMessage(walletFeedback, 'error', 'Invalid secret key', 'Secret keys are 56 characters and start with "S". Check for missing or extra characters.');
         return;
     }
 
@@ -233,8 +241,12 @@ async function loadBalances(options = {}) {
         account.balances.forEach(balance => {
             const div = document.createElement('div');
             div.className = 'balance-item';
-            const asset = formatAssetLabel(balance);
-            div.innerHTML = `<span>${asset}</span><span>${balance.balance}</span>`;
+            const assetCode = document.createElement('span');
+            assetCode.textContent = formatAssetLabel(balance);
+            const amount = document.createElement('span');
+            amount.textContent = balance.balance;
+            div.appendChild(assetCode);
+            div.appendChild(amount);
             balancesContainer.appendChild(div);
         });
     } catch (e) {
@@ -249,6 +261,8 @@ async function loadBalances(options = {}) {
 
 // Send payment
 sendPaymentBtn.addEventListener('click', async () => {
+    if (isSubmittingPayment) return;
+
     if (!currentKeypair) {
         renderMessage(transactionResult, 'error', 'Wallet required', 'Please load or generate a wallet first.');
         return;
@@ -261,6 +275,26 @@ sendPaymentBtn.addEventListener('click', async () => {
         renderMessage(transactionResult, 'error', 'Missing details', 'Please enter both a destination address and amount.');
         return;
     }
+
+    if (!isValidPublicKey(destination)) {
+        renderMessage(transactionResult, 'error', 'Invalid destination', 'Destination must be a 56-character Stellar public key starting with "G".');
+        destinationInput.focus();
+        return;
+    }
+
+    if (destination === currentKeypair.publicKey()) {
+        renderMessage(transactionResult, 'error', 'Same account', 'The destination is the account you are sending from.');
+        return;
+    }
+
+    if (!isValidAmount(amount)) {
+        renderMessage(transactionResult, 'error', 'Invalid amount', 'Amount must be a positive number, for example 1.5.');
+        amountInput.focus();
+        return;
+    }
+
+    isSubmittingPayment = true;
+    sendPaymentBtn.disabled = true;
 
     renderMessage(transactionResult, 'info', 'Sending payment', 'The transaction is being submitted.');
 
@@ -284,8 +318,13 @@ sendPaymentBtn.addEventListener('click', async () => {
         const result = await server.submitTransaction(transaction);
 
         renderMessage(transactionResult, 'success', 'Payment sent', `Transaction hash: ${result.hash}`);
+        amountInput.value = '';
         loadBalances();
     } catch (e) {
-        renderMessage(transactionResult, 'error', 'Payment failed', e.message || 'The payment could not be submitted.');
+        const detail = e?.response?.data?.extras?.result_codes?.transaction || e.message || 'The payment could not be submitted.';
+        renderMessage(transactionResult, 'error', 'Payment failed', detail);
+    } finally {
+        isSubmittingPayment = false;
+        sendPaymentBtn.disabled = false;
     }
 });

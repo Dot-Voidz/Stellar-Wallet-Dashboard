@@ -11,9 +11,9 @@ A lightweight browser dashboard for Stellar accounts: generate or load a keypair
 
 - Generate new Stellar keypairs or load an existing secret key
 - View native XLM and trustline balances via Horizon
-- Send payment transactions
+- Send payment transactions, with destination/amount validation and double-submit protection
 - Switch between testnet and public network
-- Small Vitest suite for validation helpers
+- Small Vitest suite for validation helpers (the same helpers `app.js` uses in the browser)
 
 ## Quick start
 
@@ -30,7 +30,7 @@ git clone https://github.com/Dot-Voidz/Stellar-Wallet-Dashboard.git
 cd Stellar-Wallet-Dashboard
 ```
 
-Either open `index.html` directly, or serve the folder:
+Serve the folder over HTTP (`app.js` is an ES module, so browsers block it from `file://`):
 
 ```bash
 python3 -m http.server 8000

@@ -9,8 +9,15 @@ describe('isValidPublicKey', () => {
   it('rejects invalid values', () => {
     expect(isValidPublicKey('not-a-key')).toBe(false);
     expect(isValidPublicKey('S' + 'A'.repeat(55))).toBe(false);
+    expect(isValidPublicKey('G' + 'A'.repeat(54))).toBe(false);
+    expect(isValidPublicKey('G' + 'a'.repeat(55))).toBe(false);
     expect(isValidPublicKey('')).toBe(false);
     expect(isValidPublicKey(123)).toBe(false);
+    expect(isValidPublicKey(null)).toBe(false);
+  });
+
+  it('tolerates surrounding whitespace', () => {
+    expect(isValidPublicKey(`  ${'G' + 'A'.repeat(55)}  `)).toBe(true);
   });
 });
 
@@ -34,8 +41,14 @@ describe('isValidAmount', () => {
 
   it('rejects zero, negative, and empty values', () => {
     expect(isValidAmount('0')).toBe(false);
+    expect(isValidAmount('0.0')).toBe(false);
     expect(isValidAmount('-1')).toBe(false);
     expect(isValidAmount('')).toBe(false);
     expect(isValidAmount('abc')).toBe(false);
+    expect(isValidAmount('1.')).toBe(false);
+    expect(isValidAmount('.5')).toBe(false);
+    expect(isValidAmount(Infinity)).toBe(false);
+    expect(isValidAmount(true)).toBe(false);
+    expect(isValidAmount(null)).toBe(false);
   });
 });
