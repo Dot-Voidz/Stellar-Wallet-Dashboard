@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError } from './utils.js';
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, summarizeOperation } from './utils.js';
+import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError, summarizeOperation } from './utils.js';
 
 describe('isValidPublicKey', () => {
   it('accepts a G-prefixed 56-character key shape', () => {
@@ -145,6 +144,9 @@ describe('describePaymentError', () => {
   it('falls back to a generic error for unknown input', () => {
     expect(describePaymentError(null).title).toBe('Payment failed');
     expect(describePaymentError('nope').title).toBe('Payment failed');
+  });
+});
+
 const ACCOUNT = 'G' + 'A'.repeat(55);
 
 describe('summarizeOperation', () => {

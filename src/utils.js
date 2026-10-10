@@ -144,6 +144,8 @@ export function describePaymentError(error) {
 
   const fallback = response.data?.title || message || 'The payment could not be submitted.';
   return buildPaymentError('Payment failed', fallback, transactionCode || operationCodes[0] || null);
+}
+
 const OPERATION_LABELS = {
   payment: 'Payment',
   create_account: 'Create account',

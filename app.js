@@ -1,5 +1,4 @@
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError } from './src/utils.js';
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, summarizeOperation } from './src/utils.js';
+import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError, summarizeOperation } from './src/utils.js';
 
 let currentKeypair = null;
 let currentNetwork = 'testnet';
