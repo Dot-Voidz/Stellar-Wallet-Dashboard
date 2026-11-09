@@ -1,13 +1,18 @@
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError, summarizeOperation, createAsyncAction } from './src/utils.js';
-
-let currentKeypair = null;
-let currentNetwork = 'testnet';
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError, summarizeOperation, assetsFromBalances, hasTrustline } from './src/utils.js';
+import {
+    isValidPublicKey,
+    isValidSecretKey,
+    isValidAmount,
+    isValidMemo,
+    describePaymentError,
+    summarizeOperation,
+    createAsyncAction,
+    assetsFromBalances,
+    hasTrustline
+} from './src/utils.js';
 
 let currentKeypair = null;
 let currentNetwork = 'testnet';
 let currentBalances = [];
-let isSubmittingPayment = false;
 
 // DOM Elements
 const secretKeyInput = document.getElementById('secret-key');
@@ -606,7 +611,7 @@ sendPaymentBtn.addEventListener('click', () => {
     });
 });
 
-function submitPayment({ destination, amount, memoType, memoValue }) {
+function submitPayment({ destination, amount, asset = StellarSdk.Asset.native(), memoType, memoValue }) {
     paymentAction.run(async () => {
         renderMessage(transactionResult, 'info', 'Sending payment', 'The transaction is being submitted.');
 
@@ -620,7 +625,7 @@ function submitPayment({ destination, amount, memoType, memoValue }) {
             })
                 .addOperation(StellarSdk.Operation.payment({
                     destination: destination,
-                    asset: StellarSdk.Asset.native(),
+                    asset: asset,
                     amount: amount
                 }))
                 .setTimeout(30);
@@ -637,36 +642,11 @@ function submitPayment({ destination, amount, memoType, memoValue }) {
             renderMessage(transactionResult, 'success', 'Payment sent', `Transaction hash: ${result.hash}`);
             amountInput.value = '';
             memoInput.value = '';
-            loadBalances();
-            loadOperations();
+            await loadBalances();
+            await loadOperations();
         } catch (e) {
             const failure = describePaymentError(e);
             renderMessage(transactionResult, 'error', failure.title, failure.message, failure.code);
-async function submitPayment({ destination, amount, asset = StellarSdk.Asset.native(), memoType, memoValue }) {
-    if (isSubmittingPayment) return;
-
-    isSubmittingPayment = true;
-    sendPaymentBtn.disabled = true;
-
-    renderMessage(transactionResult, 'info', 'Sending payment', 'The transaction is being submitted.');
-
-    try {
-        const server = getServer();
-        const sourceAccount = await server.loadAccount(currentKeypair.publicKey());
-
-        const builder = new StellarSdk.TransactionBuilder(sourceAccount, {
-            fee: StellarSdk.BASE_FEE,
-            networkPassphrase: getNetworkPassphrase()
-        })
-            .addOperation(StellarSdk.Operation.payment({
-                destination: destination,
-                asset: asset,
-                amount: amount
-            }))
-            .setTimeout(30);
-
-        if (memoValue) {
-            builder.addMemo(buildMemo(memoType, memoValue));
         }
     });
 }

@@ -156,6 +156,9 @@ describe('createAsyncAction', () => {
     release();
     expect((await first).value).toBe('first');
     expect(starts).toBe(1);
+  });
+});
+
 const ISSUER = 'G' + 'B'.repeat(55);
 
 describe('assetFromBalance', () => {
