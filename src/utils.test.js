@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError, summarizeOperation } from './utils.js';
+import {
+  isValidPublicKey,
+  isValidSecretKey,
+  isValidAmount,
+  isValidMemo,
+  createAsyncAction,
+  assetFromBalance,
+  assetsFromBalances,
+  hasTrustline,
+  describePaymentError,
+  summarizeOperation
+} from './utils.js';
 
 describe('isValidPublicKey', () => {
   it('accepts a G-prefixed 56-character key shape', () => {
@@ -89,6 +100,117 @@ describe('isValidMemo', () => {
     expect(isValidMemo('text', 123)).toBe(false);
     expect(isValidMemo('text', null)).toBe(false);
     expect(isValidMemo('text', undefined)).toBe(false);
+  });
+});
+
+describe('createAsyncAction', () => {
+  it('tracks loading state and always calls onFinish on success', async () => {
+    const events = [];
+    const action = createAsyncAction({
+      onStart: () => events.push('start'),
+      onFinish: () => events.push('finish')
+    });
+
+    expect(action.state).toBe('idle');
+    const result = await action.run(async () => {
+      expect(action.running).toBe(true);
+      expect(action.state).toBe('loading');
+      return 42;
+    });
+
+    expect(result).toEqual({ status: 'success', value: 42, error: undefined });
+    expect(action.running).toBe(false);
+    expect(events).toEqual(['start', 'finish']);
+  });
+
+  it('resets loading state and returns the error when the task throws', async () => {
+    const action = createAsyncAction();
+    const result = await action.run(async () => {
+      throw new Error('boom');
+    });
+
+    expect(result.status).toBe('error');
+    expect(result.error.message).toBe('boom');
+    expect(action.running).toBe(false);
+  });
+
+  it('ignores concurrent runs while a task is in flight', async () => {
+    const action = createAsyncAction();
+    let release;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    let starts = 0;
+
+    const first = action.run(async () => {
+      starts += 1;
+      await gate;
+      return 'first';
+    });
+    const second = await action.run(async () => {
+      starts += 1;
+      return 'second';
+    });
+
+    expect(second.status).toBe('busy');
+    release();
+    expect((await first).value).toBe('first');
+    expect(starts).toBe(1);
+  });
+});
+
+const ISSUER = 'G' + 'B'.repeat(55);
+
+describe('assetFromBalance', () => {
+  it('maps native balances', () => {
+    expect(assetFromBalance({ asset_type: 'native', balance: '10' })).toEqual({
+      code: 'XLM',
+      issuer: null,
+      isNative: true,
+      label: 'XLM (native)'
+    });
+  });
+
+  it('maps credit balances and shortens the issuer', () => {
+    const result = assetFromBalance({ asset_type: 'credit_alphanum4', asset_code: 'USDC', asset_issuer: ISSUER, balance: '5' });
+    expect(result).toMatchObject({ code: 'USDC', issuer: ISSUER, isNative: false });
+    expect(result.label).toBe(`USDC (${ISSUER.slice(0, 6)}…${ISSUER.slice(-4)})`);
+  });
+
+  it('rejects malformed balances', () => {
+    expect(assetFromBalance(null)).toBeNull();
+    expect(assetFromBalance({ asset_type: 'credit_alphanum4' })).toBeNull();
+  });
+});
+
+describe('assetsFromBalances', () => {
+  it('maps and filters a balance list', () => {
+    const options = assetsFromBalances([
+      { asset_type: 'native', balance: '10' },
+      { asset_type: 'credit_alphanum4' },
+      { asset_type: 'credit_alphanum4', asset_code: 'USDC', asset_issuer: ISSUER, balance: '5' }
+    ]);
+    expect(options.map((option) => option.code)).toEqual(['XLM', 'USDC']);
+  });
+
+  it('handles bad input', () => {
+    expect(assetsFromBalances()).toEqual([]);
+    expect(assetsFromBalances('nope')).toEqual([]);
+  });
+});
+
+describe('hasTrustline', () => {
+  const balances = [{ asset_type: 'credit_alphanum4', asset_code: 'USDC', asset_issuer: ISSUER }];
+
+  it('detects a matching credit balance', () => {
+    expect(hasTrustline(balances, 'USDC', ISSUER)).toBe(true);
+    expect(hasTrustline(balances, 'USDC', 'G' + 'C'.repeat(55))).toBe(false);
+    expect(hasTrustline(balances, 'EURT', ISSUER)).toBe(false);
+  });
+
+  it('handles missing input', () => {
+    expect(hasTrustline(undefined, 'USDC', ISSUER)).toBe(false);
+    expect(hasTrustline(balances, 'USDC', undefined)).toBe(false);
   });
 });
 

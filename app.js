@@ -1,8 +1,18 @@
-import { isValidPublicKey, isValidSecretKey, isValidAmount, isValidMemo, describePaymentError, summarizeOperation } from './src/utils.js';
+import {
+    isValidPublicKey,
+    isValidSecretKey,
+    isValidAmount,
+    isValidMemo,
+    describePaymentError,
+    summarizeOperation,
+    createAsyncAction,
+    assetsFromBalances,
+    hasTrustline
+} from './src/utils.js';
 
 let currentKeypair = null;
 let currentNetwork = 'testnet';
-let isSubmittingPayment = false;
+let currentBalances = [];
 
 // DOM Elements
 const secretKeyInput = document.getElementById('secret-key');
@@ -19,6 +29,7 @@ const refreshBalancesBtn = document.getElementById('refresh-balances');
 const operationsContainer = document.getElementById('operations');
 const refreshOperationsBtn = document.getElementById('refresh-operations');
 const destinationInput = document.getElementById('destination');
+const assetSelect = document.getElementById('asset-select');
 const amountInput = document.getElementById('amount');
 const memoInput = document.getElementById('memo');
 const memoTypeSelect = document.getElementById('memo-type');
@@ -39,6 +50,33 @@ const confirmSendBtn = document.getElementById('confirm-send');
 let confirmAction = null;
 let lastFocusedElement = null;
 
+// Async UI state machines: each flow has idle/loading states, resets on error,
+// and ignores concurrent clicks while a task is already in flight.
+const walletAction = createAsyncAction({
+    onStart: () => {
+        loadWalletBtn.disabled = true;
+        generateWalletBtn.disabled = true;
+    },
+    onFinish: () => {
+        loadWalletBtn.disabled = false;
+        generateWalletBtn.disabled = false;
+    }
+});
+
+const balanceAction = createAsyncAction({
+    onStart: () => setRefreshButtonState(true),
+    onFinish: () => setRefreshButtonState(false)
+});
+
+const paymentAction = createAsyncAction({
+    onStart: () => {
+        sendPaymentBtn.disabled = true;
+    },
+    onFinish: () => {
+        sendPaymentBtn.disabled = false;
+    }
+});
+
 // Toggle secret key visibility
 toggleSecretBtn.addEventListener('click', () => {
     if (secretKeyInput.type === 'password') {
@@ -54,8 +92,10 @@ toggleSecretBtn.addEventListener('click', () => {
 networkSelect.addEventListener('change', (e) => {
     currentNetwork = e.target.value;
     if (currentKeypair) {
-        loadBalances();
-        loadOperations();
+        balanceAction.run(async () => {
+            await loadBalances();
+            await loadOperations();
+        });
     }
 });
 
@@ -72,25 +112,29 @@ loadWalletBtn.addEventListener('click', () => {
         return;
     }
 
-    try {
-        currentKeypair = StellarSdk.Keypair.fromSecret(secret);
-        showWalletInfo();
-        renderMessage(walletFeedback, 'success', 'Wallet loaded', 'Balances will refresh shortly.');
-        loadBalances();
-        loadOperations();
-    } catch (e) {
-        renderMessage(walletFeedback, 'error', 'Invalid secret key', e.message || 'The secret key could not be parsed.');
-    }
+    walletAction.run(async () => {
+        try {
+            currentKeypair = StellarSdk.Keypair.fromSecret(secret);
+            showWalletInfo();
+            renderMessage(walletFeedback, 'success', 'Wallet loaded', 'Balances will refresh shortly.');
+            await loadBalances();
+            await loadOperations();
+        } catch (e) {
+            renderMessage(walletFeedback, 'error', 'Invalid secret key', e.message || 'The secret key could not be parsed.');
+        }
+    });
 });
 
 // Generate new wallet
 generateWalletBtn.addEventListener('click', () => {
-    currentKeypair = StellarSdk.Keypair.random();
-    secretKeyInput.value = currentKeypair.secret();
-    showWalletInfo();
-    renderMessage(walletFeedback, 'success', 'Wallet generated', 'Save the secret key somewhere safe.');
-    loadBalances();
-    loadOperations();
+    walletAction.run(async () => {
+        currentKeypair = StellarSdk.Keypair.random();
+        secretKeyInput.value = currentKeypair.secret();
+        showWalletInfo();
+        renderMessage(walletFeedback, 'success', 'Wallet generated', 'Save the secret key somewhere safe.');
+        await loadBalances();
+        await loadOperations();
+    });
 });
 
 refreshBalancesBtn.addEventListener('click', () => {
@@ -99,7 +143,7 @@ refreshBalancesBtn.addEventListener('click', () => {
         return;
     }
 
-    loadBalances({ manualRefresh: true });
+    balanceAction.run(() => loadBalances());
 });
 
 refreshOperationsBtn.addEventListener('click', () => {
@@ -202,10 +246,10 @@ function handleModalKeydown(event) {
     }
 }
 
-function openConfirmModal({ destination, amount, memoType, memoValue, onConfirm }) {
+function openConfirmModal({ destination, amount, assetLabel, memoType, memoValue, onConfirm }) {
     confirmDestination.textContent = destination;
-    confirmAmount.textContent = `${amount} XLM`;
-    confirmAsset.textContent = 'XLM (native)';
+    confirmAmount.textContent = `${amount} ${assetLabel}`;
+    confirmAsset.textContent = assetLabel;
     confirmMemo.textContent = memoValue ? `${memoType}: ${memoValue}` : 'None';
     confirmFee.textContent = `${networkFeeInXlm()} XLM (${StellarSdk.BASE_FEE} stroops)`;
 
@@ -303,7 +347,34 @@ function showWalletInfo() {
     walletInfo.classList.remove('hidden');
     publicKeyDisplay.textContent = currentKeypair.publicKey();
     secretKeyDisplay.textContent = currentKeypair.secret();
+    currentBalances = [];
     renderBalanceChart([]);
+    populateAssetOptions([]);
+}
+
+function populateAssetOptions(balances) {
+    if (!assetSelect) return;
+
+    const previous = assetSelect.value;
+    assetSelect.innerHTML = '';
+
+    assetsFromBalances(balances).forEach((asset) => {
+        const option = document.createElement('option');
+        option.value = asset.isNative ? 'native' : `${asset.code}:${asset.issuer}`;
+        option.textContent = asset.label;
+        assetSelect.appendChild(option);
+    });
+
+    if (!assetSelect.options.length) {
+        const fallback = document.createElement('option');
+        fallback.value = 'native';
+        fallback.textContent = 'XLM (native)';
+        assetSelect.appendChild(fallback);
+    }
+
+    if (Array.from(assetSelect.options).some((option) => option.value === previous)) {
+        assetSelect.value = previous;
+    }
 }
 
 // Get server based on network
@@ -324,19 +395,17 @@ function getNetworkPassphrase() {
 }
 
 // Load balances
-async function loadBalances(options = {}) {
+async function loadBalances() {
     if (!currentKeypair) return;
-
-    const { manualRefresh = false } = options;
-    if (manualRefresh) {
-        setRefreshButtonState(true);
-    }
 
     balancesContainer.innerHTML = '<p class="loading">Loading balances...</p>';
 
     try {
         const server = getServer();
         const account = await server.loadAccount(currentKeypair.publicKey());
+
+        currentBalances = account.balances;
+        populateAssetOptions(account.balances);
 
         balancesContainer.innerHTML = '';
         if (!account.balances.length) {
@@ -361,10 +430,6 @@ async function loadBalances(options = {}) {
     } catch (e) {
         renderBalanceChart([]);
         renderMessage(balancesContainer, 'error', 'Unable to load balances', e.message || 'The account could not be reached.');
-    } finally {
-        if (manualRefresh) {
-            setRefreshButtonState(false);
-        }
     }
 }
 
@@ -480,7 +545,7 @@ function memoHint(type) {
 
 // Send payment
 sendPaymentBtn.addEventListener('click', () => {
-    if (isSubmittingPayment) return;
+    if (paymentAction.running) return;
 
     if (!currentKeypair) {
         renderMessage(transactionResult, 'error', 'Wallet required', 'Please load or generate a wallet first.');
@@ -521,57 +586,67 @@ sendPaymentBtn.addEventListener('click', () => {
         return;
     }
 
+    const assetChoice = assetSelect ? assetSelect.value : 'native';
+    let paymentAsset = StellarSdk.Asset.native();
+    let assetLabel = 'XLM (native)';
+
+    if (assetChoice !== 'native') {
+        const [code, issuer] = assetChoice.split(':');
+        if (!hasTrustline(currentBalances, code, issuer)) {
+            renderMessage(transactionResult, 'error', 'Unknown asset', 'Select an asset your wallet holds a trustline for.');
+            return;
+        }
+        paymentAsset = new StellarSdk.Asset(code, issuer);
+        assetLabel = assetSelect.options[assetSelect.selectedIndex]?.textContent
+            || `${code} (${issuer.slice(0, 6)}…${issuer.slice(-4)})`;
+    }
+
     openConfirmModal({
         destination,
         amount,
+        assetLabel,
         memoType,
         memoValue,
-        onConfirm: () => submitPayment({ destination, amount, memoType, memoValue })
+        onConfirm: () => submitPayment({ destination, amount, asset: paymentAsset, memoType, memoValue })
     });
 });
 
-async function submitPayment({ destination, amount, memoType, memoValue }) {
-    if (isSubmittingPayment) return;
+function submitPayment({ destination, amount, asset = StellarSdk.Asset.native(), memoType, memoValue }) {
+    paymentAction.run(async () => {
+        renderMessage(transactionResult, 'info', 'Sending payment', 'The transaction is being submitted.');
 
-    isSubmittingPayment = true;
-    sendPaymentBtn.disabled = true;
+        try {
+            const server = getServer();
+            const sourceAccount = await server.loadAccount(currentKeypair.publicKey());
 
-    renderMessage(transactionResult, 'info', 'Sending payment', 'The transaction is being submitted.');
+            const builder = new StellarSdk.TransactionBuilder(sourceAccount, {
+                fee: StellarSdk.BASE_FEE,
+                networkPassphrase: getNetworkPassphrase()
+            })
+                .addOperation(StellarSdk.Operation.payment({
+                    destination: destination,
+                    asset: asset,
+                    amount: amount
+                }))
+                .setTimeout(30);
 
-    try {
-        const server = getServer();
-        const sourceAccount = await server.loadAccount(currentKeypair.publicKey());
+            if (memoValue) {
+                builder.addMemo(buildMemo(memoType, memoValue));
+            }
 
-        const builder = new StellarSdk.TransactionBuilder(sourceAccount, {
-            fee: StellarSdk.BASE_FEE,
-            networkPassphrase: getNetworkPassphrase()
-        })
-            .addOperation(StellarSdk.Operation.payment({
-                destination: destination,
-                asset: StellarSdk.Asset.native(),
-                amount: amount
-            }))
-            .setTimeout(30);
+            const transaction = builder.build();
 
-        if (memoValue) {
-            builder.addMemo(buildMemo(memoType, memoValue));
+            transaction.sign(currentKeypair);
+            const result = await server.submitTransaction(transaction);
+
+            renderMessage(transactionResult, 'success', 'Payment sent', `Transaction hash: ${result.hash}`);
+            amountInput.value = '';
+            memoInput.value = '';
+            await loadBalances();
+            await loadOperations();
+        } catch (e) {
+            const failure = describePaymentError(e);
+            renderMessage(transactionResult, 'error', failure.title, failure.message, failure.code);
         }
-
-        const transaction = builder.build();
-
-        transaction.sign(currentKeypair);
-        const result = await server.submitTransaction(transaction);
-
-        renderMessage(transactionResult, 'success', 'Payment sent', `Transaction hash: ${result.hash}`);
-        amountInput.value = '';
-        memoInput.value = '';
-        loadBalances();
-        loadOperations();
-    } catch (e) {
-        const failure = describePaymentError(e);
-        renderMessage(transactionResult, 'error', failure.title, failure.message, failure.code);
-    } finally {
-        isSubmittingPayment = false;
-        sendPaymentBtn.disabled = false;
-    }
+    });
 }
